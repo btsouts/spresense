@@ -45,6 +45,9 @@
 # cxd56_uart.o
 # cxd56_timerisr.o
 # cxd56_idle.o
+# cxd56_start.o
+# up_udelay.o
+# up_mdelay.o
 #
 
 CHIP_ASRCS += cxd56_farapistub.S
@@ -55,6 +58,7 @@ CHIP_CSRCS += cxd56_timerisr.c
 CHIP_CSRCS += cxd56_pinconfig.c
 CHIP_CSRCS += cxd56_clock.c
 CHIP_CSRCS += cxd56_delay.c
+CHIP_CSRCS += cxd56_start.c
 
 # Inter CPU communication
 
@@ -63,9 +67,12 @@ CHIP_CSRCS += cxd56_sysctl.c
 
 # Power manager
 
-CHIP_CSRCS += cxd56_powermgr.c cxd56_pmic.c
+CHIP_CSRCS += cxd56_powermgr.c
 ifeq ($(CONFIG_CXD56_PM_PROCFS),y)
 CHIP_CSRCS += cxd56_powermgr_procfs.c
+endif
+ifeq ($(CONFIG_CXD56_PMIC),y)
+CHIP_CSRCS += cxd56_pmic.c
 endif
 
 ifeq ($(CONFIG_CXD56_HOT_SLEEP),y)
@@ -76,6 +83,10 @@ endif
 # Peripherals
 
 CHIP_CSRCS += cxd56_serial.c cxd56_uart.c
+
+ifeq ($(CONFIG_CXD56_UART0),y)
+CHIP_CSRCS += cxd56_uart0.c
+endif
 
 ifeq ($(CONFIG_CXD56_RTC),y)
 CHIP_CSRCS += cxd56_rtc.c
@@ -176,4 +187,14 @@ endif
 
 ifeq ($(CONFIG_CXD56_CHARGER),y)
 CHIP_CSRCS += cxd56_charger.c
+endif
+
+ifeq ($(CONFIG_CXD56_GE2D),y)
+CHIP_CSRCS += cxd56_ge2d.c
+endif
+
+# Toolchain glue
+
+ifeq ($(CONFIG_LIBM_NEWLIB),y)
+CHIP_CSRCS += cxd56_libm_errno.c
 endif

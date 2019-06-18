@@ -1,7 +1,7 @@
 /****************************************************************************
  * bsp/src/cxd56_gnss.c
  *
- *   Copyright 2018 Sony Semiconductor Solutions Corporation
+ *   Copyright 2018,2019 Sony Semiconductor Solutions Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,6 +55,7 @@
 #include <arch/board/board.h>
 #include "cxd56_gnss_api.h"
 #include "cxd56_cpu1signal.h"
+#include "cxd56_gnss.h"
 
 #if defined(CONFIG_CXD56_GNSS)
 
@@ -386,12 +387,20 @@ static int (*g_cmdlist[CXD56_GNSS_IOCTL_MAX])(FAR struct file *filep,
 static int cxd56_gnss_start(FAR struct file *filep, unsigned long arg)
 {
   int     ret;
+  int     retry = 50;
   uint8_t start_mode = (uint8_t)arg;
 
   ret = board_lna_power_control(true);
   if (ret < 0)
     {
       return ret;
+    }
+
+  while (!g_rtc_enabled && 0 < retry--)
+    {
+      /* GNSS requires stable RTC */
+
+      usleep(100 * 1000);
     }
 
   ret = cxd56_gnss_cpufifo_api(filep, CXD56_GNSS_GD_GNSS_START,
@@ -1271,6 +1280,7 @@ static int cxd56_gnss_control_spectrum(FAR struct file *filep, unsigned long arg
 static int cxd56_gnss_start_test(FAR struct file *filep, unsigned long arg)
 {
   int ret;
+  int retry = 50;
   FAR struct cxd56_gnss_test_info_s *info;
 
   /* check argument */
@@ -1281,6 +1291,21 @@ static int cxd56_gnss_start_test(FAR struct file *filep, unsigned long arg)
     }
   else
     {
+      /* Power on the LNA device */
+
+      ret = board_lna_power_control(true);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      while (!g_rtc_enabled && 0 < retry--)
+        {
+          /* GNSS requires stable RTC */
+
+          usleep(100 * 1000);
+        }
+
       /* set parameter */
 
       info = (FAR struct cxd56_gnss_test_info_s *)arg;
@@ -1323,6 +1348,10 @@ static int cxd56_gnss_stop_test(FAR struct file *filep, unsigned long arg)
 
       ret = GD_Stop();
     }
+
+  /* Power off the LNA device */
+
+  board_lna_power_control(false);
 
   return ret;
 }
@@ -2193,7 +2222,7 @@ static void cxd56_gnss_default_sighandler(uint32_t data, FAR void *userdata)
       if (fds)
         {
           fds->revents |= POLLIN;
-          _info("Report events: %02x\n", fds->revents);
+          gnssinfo("Report events: %02x\n", fds->revents);
           sem_post(fds->sem);
         }
     }
@@ -2341,6 +2370,11 @@ static int8_t cxd56_gnss_select_notifytype(off_t fpos, FAR uint32_t *offset)
   else if (fpos == CXD56_GNSS_READ_OFFSET_SBAS)
     {
       type = CXD56_CPU1_DATA_TYPE_SBAS;
+      *offset = 0;
+    }
+  else if (fpos == CXD56_GNSS_READ_OFFSET_DCREPORT)
+    {
+      type = CXD56_CPU1_DATA_TYPE_DCREPORT;
       *offset = 0;
     }
   else
@@ -2589,7 +2623,7 @@ _success:
  *
  * Returned Value:
  *   Always returns -ENOENT error.
- * 
+ *
  *****************************************************************************/
 
 static ssize_t cxd56_gnss_write(FAR struct file *filep,
@@ -2785,6 +2819,10 @@ static int cxd56_gnss_register(FAR const char *devpath)
     {
       CXD56_CPU1_DATA_TYPE_SBAS,
       cxd56_gnss_common_signalhandler
+    },
+    {
+      CXD56_CPU1_DATA_TYPE_DCREPORT,
+      cxd56_gnss_common_signalhandler
     }
   };
 
@@ -2792,7 +2830,7 @@ static int cxd56_gnss_register(FAR const char *devpath)
     sizeof(struct cxd56_gnss_dev_s));
   if (!priv)
     {
-      _err("Failed to allocate instance\n");
+      gnsserr("Failed to allocate instance\n");
       return -ENOMEM;
     }
 
@@ -2801,35 +2839,35 @@ static int cxd56_gnss_register(FAR const char *devpath)
   ret = sem_init(&priv->devsem, 0, 1);
   if (ret < 0)
     {
-      _err("Failed to initialize gnss devsem!\n");
+      gnsserr("Failed to initialize gnss devsem!\n");
       goto _err0;
     }
 
   ret = sem_init(&priv->apiwait, 0, 0);
   if (ret < 0)
     {
-      _err("Failed to initialize gnss apiwait!\n");
+      gnsserr("Failed to initialize gnss apiwait!\n");
       goto _err0;
     }
 
   ret = sem_init(&priv->ioctllock, 0, 1);
   if (ret < 0)
     {
-      _err("Failed to initialize gnss ioctllock!\n");
+      gnsserr("Failed to initialize gnss ioctllock!\n");
       goto _err0;
     }
 
   ret = cxd56_gnss_initialize(priv);
   if (ret < 0)
     {
-      _err("Failed to initialize gnss device!\n");
+      gnsserr("Failed to initialize gnss device!\n");
       goto _err0;
     }
 
   ret = register_driver(devpath, &g_gnssfops, 0666, priv);
   if (ret < 0)
     {
-      _err("Failed to register driver: %d\n", ret);
+      gnsserr("Failed to register driver: %d\n", ret);
       goto _err0;
     }
 
@@ -2838,7 +2876,7 @@ static int cxd56_gnss_register(FAR const char *devpath)
       ret = cxd56_cpu1siginit(devsig_table[i].sigtype, priv);
       if (ret < 0)
         {
-          _err("Failed to initialize ICC for GPS CPU: %d,%d\n", ret,
+          gnsserr("Failed to initialize ICC for GPS CPU: %d,%d\n", ret,
                 devsig_table[i].sigtype);
           goto _err2;
         }
@@ -2846,7 +2884,7 @@ static int cxd56_gnss_register(FAR const char *devpath)
                                    devsig_table[i].handler);
     }
 
-  _info("GNSS driver loaded successfully!\n");
+  gnssinfo("GNSS driver loaded successfully!\n");
 
   return ret;
 
@@ -2875,12 +2913,12 @@ int cxd56_gnssinitialize(FAR const char *devpath)
 {
   int ret;
 
-  _info("Initializing GNSS..\n");
+  gnssinfo("Initializing GNSS..\n");
 
   ret = cxd56_gnss_register(devpath);
   if (ret < 0)
     {
-      _err("Error registering GNSS\n");
+      gnsserr("Error registering GNSS\n");
     }
 
   return ret;

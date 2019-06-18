@@ -41,7 +41,6 @@
 #include <string.h>
 
 #include "dbg_if.h"
-#include "apicmd.h"
 #include "buffpoolwrapper.h"
 #include "apicmdgw.h"
 #include "apicmd_errind.h"
@@ -61,9 +60,6 @@
 #define APICMDGW_CHKSUM_LENGTH          (12)
 
 #define APICMDGW_APICMDHDR_LEN          (sizeof(struct apicmd_cmdhdr_s))
-#define APICMDGW_APICMDPAYLOAD_SIZE_MAX (2048)
-#define APICMDGW_BUFF_SIZE_MAX \
-  (APICMDGW_APICMDPAYLOAD_SIZE_MAX + APICMDGW_APICMDHDR_LEN)
 
 #define APICMDGW_HDR_ERR_VER            (-1)
 #define APICMDGW_HDR_ERR_CHKSUM         (-2)
@@ -113,43 +109,6 @@ static sys_mutex_t                    g_delwaitcondmtx;
 static FAR struct hal_if_s            *g_hal_if       = NULL;
 static FAR struct evtdisp_s           *g_evtdisp      = NULL;
 static sys_cremtx_s                   g_mtxparam;
-
-/****************************************************************************
- * Inline functions
- ****************************************************************************/
-
-static inline void apicmdgw_mutex_lock(sys_mutex_t mtx)
-{
-  int32_t lockret = sys_lock_mutex(&mtx);
-  DBGIF_ASSERT(0 == lockret, "sys_lock_mutex().\n");
-}
-
-static inline void apicmdgw_blkinfotbl_lock(void)
-{
-  int32_t creret;
-  if (!g_blkinfotbl)
-    {
-      creret = sys_create_mutex(&g_blkinfotbl_mtx, &g_mtxparam);
-      DBGIF_ASSERT(0 == creret, "sys_create_mutex().\n");
-    }
-  apicmdgw_mutex_lock(g_blkinfotbl_mtx);
-}
-
-static inline void apicmdgw_mutex_unlock(sys_mutex_t mtx)
-{
-  int32_t unlockret = sys_unlock_mutex(&mtx);
-  DBGIF_ASSERT(0 == unlockret, "sys_unlock_mutex().\n");
-}
-
-static inline void apicmdgw_blkinfotbl_unlock(void)
-{
-  apicmdgw_mutex_unlock(g_blkinfotbl_mtx);
-  if (!g_blkinfotbl)
-    {
-      int32_t delret = sys_delete_mutex(&g_blkinfotbl_mtx);
-      DBGIF_ASSERT(0 == delret, "sys_delete_mutex().\n");
-    }
-}
 
 /****************************************************************************
  * Private Functions
@@ -242,7 +201,7 @@ static int32_t apicmdgw_checkheader(FAR uint8_t *evt)
       return APICMDGW_HDR_ERR_VER;
     }
 
-  if (APICMDGW_APICMDPAYLOAD_SIZE_MAX < APICMDGW_GET_DATA_LEN(hdr))
+  if (APICMD_PAYLOAD_SIZE_MAX < APICMDGW_GET_DATA_LEN(hdr))
     {
       DBGIF_LOG1_ERROR("Data length error. [data len:%d]\n", APICMDGW_GET_DATA_LEN(hdr));
       return APICMDGW_HDR_ERR_VER;
@@ -341,7 +300,7 @@ void apicmdgw_errhandle(FAR struct apicmd_cmdhdr_s *evthdr)
 
 static void apicmdgw_addtable(FAR struct apicmdgw_blockinf_s *tbl)
 {
-  apicmdgw_blkinfotbl_lock();
+  sys_lock_mutex(&g_blkinfotbl_mtx);
 
   if (!g_blkinfotbl)
     {
@@ -353,7 +312,7 @@ static void apicmdgw_addtable(FAR struct apicmdgw_blockinf_s *tbl)
       g_blkinfotbl = tbl;
     }
 
-  apicmdgw_blkinfotbl_unlock();
+  sys_unlock_mutex(&g_blkinfotbl_mtx);
 }
 
 /****************************************************************************
@@ -376,7 +335,7 @@ static void apicmdgw_remtable(FAR struct apicmdgw_blockinf_s *tbl)
 
   DBGIF_ASSERT(g_blkinfotbl, "table list is null.\n");
 
-  apicmdgw_blkinfotbl_lock();
+  sys_lock_mutex(&g_blkinfotbl_mtx);
 
   tmptbl = g_blkinfotbl;
   if (tmptbl == tbl)
@@ -402,7 +361,7 @@ static void apicmdgw_remtable(FAR struct apicmdgw_blockinf_s *tbl)
   sys_delete_thread_cond_mutex(&tmptbl->waitcond, &tmptbl->waitcondmtx);
   BUFFPOOL_FREE(tmptbl);
 
-  apicmdgw_blkinfotbl_unlock();
+  sys_unlock_mutex(&g_blkinfotbl_mtx);
 }
 
 /****************************************************************************
@@ -430,7 +389,7 @@ static bool apicmdgw_writetable(uint16_t cmdid,
   bool                           result = false;
   FAR struct apicmdgw_blockinf_s *tbl   = NULL;
 
-  apicmdgw_blkinfotbl_lock();
+  sys_lock_mutex(&g_blkinfotbl_mtx);
 
   tbl = g_blkinfotbl;
   while(tbl)
@@ -462,7 +421,7 @@ static bool apicmdgw_writetable(uint16_t cmdid,
       DBGIF_ASSERT(0 == ret, "sys_signal_thread_cond().\n");
     }
 
-  apicmdgw_blkinfotbl_unlock();
+  sys_unlock_mutex(&g_blkinfotbl_mtx);
 
   return result;
 }
@@ -486,7 +445,7 @@ static void apicmdgw_relcondwaitall(void)
   int32_t ret;
   FAR struct apicmdgw_blockinf_s *tmptbl;
 
-  apicmdgw_blkinfotbl_lock();
+  sys_lock_mutex(&g_blkinfotbl_mtx);
 
   tmptbl = g_blkinfotbl;
   while(tmptbl)
@@ -497,7 +456,7 @@ static void apicmdgw_relcondwaitall(void)
       tmptbl = tmptbl->next;
     }
 
-  apicmdgw_blkinfotbl_unlock();
+  sys_unlock_mutex(&g_blkinfotbl_mtx);
 }
 
 /****************************************************************************
@@ -544,7 +503,7 @@ static void apicmdgw_recvtask(void *arg)
     }
 
   rcvbuff = (uint8_t *)g_hal_if->allocbuff(
-              g_hal_if, APICMDGW_BUFF_SIZE_MAX);
+              g_hal_if, APICMDGW_RECVBUFF_SIZE_MAX);
   DBGIF_ASSERT(rcvbuff, "g_hal_atunsolevt->allocbuff()\n");
   rcvptr = rcvbuff;
 
@@ -552,9 +511,9 @@ static void apicmdgw_recvtask(void *arg)
     {
       if (rcvlen)
         {
-          if (APICMDGW_BUFF_SIZE_MAX < totallen + rcvlen)
+          if (APICMDGW_RECVBUFF_SIZE_MAX < totallen + rcvlen)
             {
-              memset(rcvbuff, 0, APICMDGW_BUFF_SIZE_MAX);
+              memset(rcvbuff, 0, APICMDGW_RECVBUFF_SIZE_MAX);
               APICMDGW_RECV_STATUS_INIT();
             }
 
@@ -746,6 +705,9 @@ int32_t apicmdgw_init(FAR struct apicmdgw_set_s *set)
   taskset.priority   = SYS_TASK_PRIO_HIGH;
   taskset.stack_size = APICMDGW_MAIN_TASK_STACK_SIZE;
 
+  ret = sys_create_mutex(&g_blkinfotbl_mtx, &g_mtxparam);
+  DBGIF_ASSERT(0 == ret, "sys_create_mutex().\n");
+
   ret = sys_create_task(&g_rcvtask, &taskset);
   DBGIF_ASSERT(0 == ret, "sys_create_task().\n");
 
@@ -793,6 +755,9 @@ int32_t apicmdgw_fin(void)
 
   sys_delete_thread_cond_mutex(&g_delwaitcond, &g_delwaitcondmtx);
   apicmdgw_relcondwaitall();
+
+  ret = sys_delete_mutex(&g_blkinfotbl_mtx);
+  DBGIF_ASSERT(0 == ret, "sys_delete_mutex().\n");
 
   g_hal_if       = NULL;
   g_evtdisp      = NULL;
@@ -844,6 +809,9 @@ int32_t apicmdgw_send(FAR uint8_t *cmd, FAR uint8_t *respbuff,
     }
 
   hdr_ptr = (FAR struct apicmd_cmdhdr_s *)APICMDGW_GET_HDR_PTR(cmd);
+
+  sendlen = ntohs(hdr_ptr->dtlen) + APICMDGW_APICMDHDR_LEN;
+
   if (respbuff)
     {
       blocktbl = (FAR struct apicmdgw_blockinf_s *)
@@ -871,56 +839,98 @@ int32_t apicmdgw_send(FAR uint8_t *cmd, FAR uint8_t *respbuff,
         }
 
       apicmdgw_addtable(blocktbl);
-    }
 
-  sendlen = ntohs(hdr_ptr->dtlen) + APICMDGW_APICMDHDR_LEN;
-  g_hal_if->lock(g_hal_if);
-  ret = g_hal_if->send(g_hal_if,
-    (FAR uint8_t *)hdr_ptr, sendlen);
-  g_hal_if->unlock(g_hal_if);
+      sys_lock_mutex(&blocktbl->waitcondmtx);
 
-  if (0 > ret)
-    {
-      DBGIF_LOG_ERROR("hal_if->send() failed.\n");
-      if (respbuff)
-        {
-          apicmdgw_remtable(blocktbl);
-        }
-
-      return ret;
-    }
-
-  if (respbuff)
-    {
-      /* Recv message wait here. */
-      
-      ret = sys_wait_thread_cond(&blocktbl->waitcond, &blocktbl->waitcondmtx,
-                                 timeout_ms);
+      g_hal_if->lock(g_hal_if);
+      ret = g_hal_if->send(g_hal_if, (FAR uint8_t *)hdr_ptr, sendlen);
+      g_hal_if->unlock(g_hal_if);
 
       if (0 > ret)
         {
-          ret = -ETIMEDOUT;
+          DBGIF_LOG_ERROR("hal_if->send() failed.\n");
         }
       else
         {
-          if (0 > blocktbl->result)
-            {
-              ret = blocktbl->result;
-            }
+          /* Wait until the response data is received or timeout. */
 
-          if (!g_isinit)
+          ret = sys_thread_cond_timedwait(&blocktbl->waitcond,
+                                          &blocktbl->waitcondmtx, timeout_ms);
+          if (0 > ret)
             {
-              ret = -ECONNABORTED;
+              ret = -ETIMEDOUT;
+            }
+          else
+            {
+              if (0 > blocktbl->result)
+                {
+                  ret = blocktbl->result;
+                }
+
+              if (!g_isinit)
+                {
+                  ret = -ECONNABORTED;
+                }
             }
         }
+      sys_unlock_mutex(&blocktbl->waitcondmtx);
 
       apicmdgw_remtable(blocktbl);
+    }
+  else
+    {
+      /* Send only */
+
+      g_hal_if->lock(g_hal_if);
+      ret = g_hal_if->send(g_hal_if, (FAR uint8_t *)hdr_ptr, sendlen);
+      g_hal_if->unlock(g_hal_if);
+
+      if (0 > ret)
+        {
+          DBGIF_LOG_ERROR("hal_if->send() failed.\n");
+          return ret;
+        }
     }
 
   if (0 <= ret)
     {
       ret = ntohs(hdr_ptr->dtlen);
     }
+
+  return ret;
+}
+
+/****************************************************************************
+ * Name: apicmdgw_sendabort
+ *
+ * Description:
+ *   Abort api command send, And release sync command response waiting.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   On success, the length of the sent command in bytes is returned.
+ *   On failure, negative value is returned.
+ *
+ ****************************************************************************/
+
+int32_t apicmdgw_sendabort(void)
+{
+  int32_t                        ret = 0;
+  FAR struct apicmdgw_blockinf_s *tbl = NULL;
+
+  sys_lock_mutex(&g_blkinfotbl_mtx);
+
+  tbl = g_blkinfotbl;
+  while (tbl)
+    {
+      tbl->result = -ENETDOWN;
+      tbl = tbl->next;
+    }
+
+  sys_unlock_mutex(&g_blkinfotbl_mtx);
+  apicmdgw_relcondwaitall();
 
   return ret;
 }
@@ -953,7 +963,7 @@ FAR uint8_t *apicmdgw_cmd_allocbuff(uint16_t cmdid, uint16_t len)
       return NULL;
     }
 
-  if (APICMDGW_APICMDPAYLOAD_SIZE_MAX < len)
+  if (APICMD_PAYLOAD_SIZE_MAX < len)
     {
       DBGIF_LOG1_ERROR("Over max API command data size. len:%d\n", len);
       return NULL;
@@ -1015,7 +1025,7 @@ FAR uint8_t *apicmdgw_reply_allocbuff(FAR const uint8_t *cmd, uint16_t len)
       return NULL;
     }
 
-  if (APICMDGW_APICMDPAYLOAD_SIZE_MAX < len)
+  if (APICMD_PAYLOAD_SIZE_MAX < len)
     {
       DBGIF_LOG1_ERROR("Over max API command data size. len:%d\n", len);
       return NULL;

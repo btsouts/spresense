@@ -269,6 +269,8 @@ typedef enum
   AS_ACA_INIT_AMIC,
   AS_ACA_SET_AMIC_BOOT_DONE,
   AS_ACA_SET_OUTPUT_DEVICE,
+  AS_ACA_GET_REGISTER,
+  AS_ACA_SET_REGISTER,
   AS_ACA_CONTROL_TYPE_NUM
 } AsAcaControlType;
 
@@ -311,6 +313,13 @@ typedef struct
   asAcaSpSplitonSelId   spSpliton;
   asAcaSpDrvSelId       spDrv;
 } asAcaPulcoOutParam;
+
+typedef struct
+{
+  uint32_t bank;
+  uint32_t addr;
+  uint32_t value;
+} asAcaPulcoRegParam;
 
 typedef struct
 {
@@ -382,7 +391,7 @@ static void get_osc_mode(uint8_t cfg_mclk, asAcaPulcoOscModeId *osc)
 }
 
 /*--------------------------------------------------------------------------*/
-static void get_mic_dev(uint8_t cfg_mic, FAR asAcaPulcoMicDeviceId *dev)
+static void get_mic_dev(uint32_t cfg_mic, FAR asAcaPulcoMicDeviceId *dev)
 {
   bool is_amic = false;
   bool is_dmic = false;
@@ -510,8 +519,10 @@ static void get_sp_driver(uint8_t cfg_sp_drv, FAR asAcaSpDrvSelId *spDrv)
 /*--------------------------------------------------------------------------*/
 void get_pwon_param(asAcaPulcoParam *param)
 {
+  uint32_t mic_map = cxd56_audio_config_get_micmap();
+
   get_osc_mode((uint8_t)CXD56_AUDIO_CFG_MCLK,       &param->oscMode);
-  get_mic_dev((uint8_t)CXD56_AUDIO_CFG_MIC,         &param->micDev);
+  get_mic_dev(mic_map,                              &param->micDev);
   get_drv_str((uint8_t)CXD56_AUDIO_CFG_GPO_A_DS,    &param->gpoDs);
   get_drv_str((uint8_t)CXD56_AUDIO_CFG_DA_DS,       &param->adDataDs);
   get_drv_str((uint8_t)CXD56_AUDIO_CFG_DMIC_CLK_DS, &param->dmicClkDs);
@@ -522,6 +533,7 @@ void get_pwon_param(asAcaPulcoParam *param)
 void get_serial_param(asSerDesParam *param)
 {
   uint8_t mic_mode = cxd56_audio_config_get_micmode();
+  uint32_t mic_map = cxd56_audio_config_get_micmap();
   uint8_t mic_sel  = 0;
 
   if (CXD56_AUDIO_CFG_MIC_MODE_128FS == mic_mode)
@@ -537,7 +549,7 @@ void get_serial_param(asSerDesParam *param)
 
   for (uint8_t i = 0; i < CXD56_AUDIO_MIC_CH_MAX; i++)
     {
-      mic_sel = (CXD56_AUDIO_CFG_MIC >> (i * MIC_CH_BITNUM)) & MIC_CH_BITMAP;
+      mic_sel = (mic_map >> (i * MIC_CH_BITNUM)) & MIC_CH_BITMAP;
       param->selCh.in[i]  = (asAcaPulcoSerSelChId)mic_sel;
     }
 }
@@ -548,17 +560,18 @@ void get_input_param(asAcaPulcoInParam *param,
 {
   uint8_t mic_sel;
   uint8_t mic_id;
+  uint32_t mic_map = cxd56_audio_config_get_micmap();
   uint32_t pga_gain;
 
   memset((void *)param, 0, sizeof(asAcaPulcoInParam));
 
-  get_mic_dev((uint8_t)CXD56_AUDIO_CFG_MIC, &param->micDev);
+  get_mic_dev(mic_map, &param->micDev);
 
   get_mic_bias((uint8_t)CXD56_AUDIO_CFG_MIC_BIAS, &param->micBiasSel);
 
   for (uint8_t i = 0; i < CXD56_AUDIO_MIC_CH_MAX; i++)
     {
-      mic_sel = (CXD56_AUDIO_CFG_MIC >> (i * MIC_CH_BITNUM)) & MIC_CH_BITMAP;
+      mic_sel = (mic_map >> (i * MIC_CH_BITNUM)) & MIC_CH_BITMAP;
       if ((mic_sel >= 1) && (mic_sel <= 4))
         {
           mic_id = mic_sel - 1;
@@ -784,6 +797,19 @@ CXD56_AUDIO_ECODE cxd56_audio_aca_notify_micbootdone(void)
       return CXD56_AUDIO_ECODE_ANA_NOTIFY_MICBOOT;
     }
 
+  return CXD56_AUDIO_ECODE_OK;
+}
+
+/*--------------------------------------------------------------------------*/
+CXD56_AUDIO_ECODE cxd56_audio_aca_read_reg(asAcaPulcoRegParam *param)
+{
+  AS_AcaControl(AS_ACA_GET_REGISTER, (uint32_t)param);
+  return CXD56_AUDIO_ECODE_OK;
+}
+
+CXD56_AUDIO_ECODE cxd56_audio_aca_write_reg(asAcaPulcoRegParam *param)
+{
+  AS_AcaControl(AS_ACA_SET_REGISTER, (uint32_t)param);
   return CXD56_AUDIO_ECODE_OK;
 }
 

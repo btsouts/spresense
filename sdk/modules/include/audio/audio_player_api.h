@@ -111,6 +111,10 @@
 
 #define LENGTH_SET_GAIN (2)
 
+/*! \brief Send Pfcommand command ("AUDCMD_SENDPOSTCMD") packet length */
+
+#define LENGTH_SENDPOSTCMD (10)
+
 /** @} */
 
 /****************************************************************************
@@ -361,17 +365,17 @@ typedef struct
 
   uint8_t  active_player;
 
+  /*! \brief [in] post DSP 0 enable */
+
+  uint8_t  post0_enable;
+
+  /*! \brief [in] post DSP 1 enable */
+
+  uint8_t  post1_enable;
+
   /*! \brief [in] reserved */
 
   uint8_t  reserve0;
-
-  /*! \brief [in] reserved */
-
-  uint8_t  reserve1;
-
-  /*! \brief [in] reserved */
-
-  uint8_t  reserve2;
 
   /*! \brief [in] Activation parameters for player0 */
 
@@ -570,20 +574,6 @@ typedef struct
   };
 } PlayerCommand;
 
-/** Request Clock Recovery Command (#AUDCMD_CLKRECOVERY) parameter */
-
-typedef struct
-{
-  /*! \brief [in] Handle of OutputMixer */
-
-  uint8_t  player_id;
-
-  int8_t   direction;
-
-  uint32_t times;
-
-} AsPlayerClockRecovery;
-
 /** Message queue ID parameter of activate function */
 
 typedef struct
@@ -773,6 +763,15 @@ bool AS_DeactivatePlayer(AsPlayerId id, FAR AsDeactivatePlayer *deactparam);
  */
 
 bool AS_DeletePlayer(AsPlayerId id);
+
+/**
+ * @brief Check availability of MediaPlayer 
+ *
+ * @retval     true  : avaliable 
+ * @retval     false : Not available 
+ */
+
+bool AS_checkAvailabilityMediaPlayer(AsPlayerId id);
 
 #endif  /* __MODULES_INCLUDE_AUDIO_AUDIO_PLAYER_API_H */
 /**

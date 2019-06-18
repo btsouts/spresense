@@ -50,6 +50,7 @@
 
 #include <arch/board/common/cxd56_gpioif.h>
 #include <arch/board/common/cxd56_power.h>
+#include <arch/board/common/cxd56_clock.h>
 #include <arch/board/common/cxd56_audio.h>
 #include <arch/board/common/cxd56_flash.h>
 #include <arch/board/common/cxd56_sdcard.h>
@@ -58,6 +59,9 @@
 #include <arch/board/common/cxd56_pwm.h>
 #include <arch/board/common/cxd56_sensors.h>
 #include <arch/board/common/cxd56_isx012.h>
+#include <arch/board/common/cxd56_gauge.h>
+#include <arch/board/common/cxd56_charger.h>
+#include <arch/board/common/cxd56_bcm20706.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -77,6 +81,10 @@
 #define BOARD_UART0_BASEFREQ        CONFIG_CXD56_XOSC_CLOCK
 #define BOARD_UART1_BASEFREQ        BOARD_FCLKOUT_FREQUENCY
 #define BOARD_UART2_BASEFREQ        CONFIG_CXD56_XOSC_CLOCK
+
+/* LCD Display clocking ****************************************************/
+
+#define ILI9340_SPI_MAXFREQUENCY    40000000
 
 /* LED definitions *********************************************************/
 
@@ -162,10 +170,11 @@ enum board_power_device {
   POWER_AUDIO_AVDD      = PMIC_GPO(1),
   POWER_AUDIO_MUTE      = PMIC_GPO(6),
   POWER_IMAGE_SENSOR    = PMIC_GPO(4) | PMIC_GPO(5) | PMIC_GPO(7),
-  POWER_BTBLE           = PMIC_GPO(3),
 
+  POWER_BTBLE           = PMIC_NONE,
   POWER_SENSOR          = PMIC_NONE,
   POWER_EMMC            = PMIC_NONE,
+  POWER_LTE             = PMIC_GPO(2),
 };
 
 /* Power Off Level definitions *********************************************/
@@ -186,10 +195,21 @@ enum board_power_device {
 
 /* Display device pin definitions ******************************************/
 
+#if defined(CONFIG_LCD_ON_MAIN_BOARD) /* Display connected to main board. */
+
+#define DISPLAY_RST     PIN_I2S0_BCK
+#define DISPLAY_DC      PIN_I2S0_LRCK
+
+#define DISPLAY_SPI     5
+
+#else /* Display is connected through extension board. */
+
 #define DISPLAY_RST     PIN_SPI2_MISO
 #define DISPLAY_DC      PIN_PWM2
 
 #define DISPLAY_SPI     4
+
+#endif
 
 /* Imager device pin definitions *******************************************/
 
@@ -206,59 +226,5 @@ enum board_power_device {
  */
 
 #define BOARDIOC_USBDEV_SETNOTIFYSIG      (BOARDIOC_USER+0x0001)
-
-#ifdef CONFIG_BCM20706
-
-/****************************************************************************
- * Name: board_bcm20706_pin_cfg
- *
- * Description:
- *   Initialize bcm20707 control pins, it must be called before any operation
- *   to do power control, wake up and reset.
- *
- ****************************************************************************/
-
-int board_bcm20706_pin_cfg(void);
-
-/****************************************************************************
- * Name: board_bcm20706_uart_pin_cfg
- *
- * Description:
- *   Setup UART pin configuration for bcm20706.
- *
- ****************************************************************************/
-
-int board_bcm20706_uart_pin_cfg(void);
-
-/****************************************************************************
- * Name: board_bcm20706_reset
- *
- * Description:
- *   Reset bcm20707 chip
- *
- ****************************************************************************/
-
-void board_bcm20706_reset(void);
-
-/****************************************************************************
- * Name: board_bcm20706_power_control
- *
- * Description:
- *   Power on/off bcm20707 chip
- *
- ****************************************************************************/
-
-int board_bcm20706_power_control(bool en);
-
-/****************************************************************************
- * Name: board_bcm20706_enable_sleep
- *
- * Description:
- *   Enable/disable bcm20707 enters sleep mode
- *
- ****************************************************************************/
-
-void board_bcm20706_enable_sleep(bool en);
-#endif /* CONFIG_BCM20706 */
 
 #endif  /* __BSP_BOARD_SPRESENSE_INCLUDE_BOARD_H */

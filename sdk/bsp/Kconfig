@@ -49,6 +49,18 @@ config CXD56_WLCSP
 
 endchoice
 
+choice
+	prompt "CXD56xx core selection"
+	default CXD56_MAINCORE
+
+config CXD56_MAINCORE
+	bool "Main Core"
+
+config CXD56_SUBCORE
+	bool "Sub Core"
+
+endchoice
+
 comment "Basic Options"
 
 config CXD56_XOSC_CLOCK
@@ -61,10 +73,12 @@ config CXD56_SPH
 
 config CXD56_PMIC
 	bool
-	default y
+	default y if CXD56_MAINCORE
+	default n if CXD56_SUBCORE
 
 config CXD56_CPUFIFO
 	bool
+	default y
 
 config CXD56_ICC
 	bool
@@ -72,8 +86,8 @@ config CXD56_ICC
 
 config CXD56_FARAPI
 	bool
-	default y
-	select CXD56_CPUFIFO
+	default y if CXD56_MAINCORE
+	default n if CXD56_SUBCORE
 
 menu "Far API Configuration"
 	depends on CXD56_FARAPI
@@ -103,11 +117,23 @@ endmenu # Far API Configuration
 
 comment "Timer Options"
 
-config CXD56_RTC
+menuconfig CXD56_RTC
 	bool "Real Time Clock (RTC)"
 	default y
 	---help---
 		Support RTC
+
+if CXD56_RTC
+
+config CXD56_RTC_LATEINIT
+	bool "Late RTC initialization"
+	default y
+	---help---
+		Enable the late RTC initialization after waiting until the external
+		CXD5247 RTC clock is stable. It will take 2 seconds typically at the
+		initial boot by power on reset.
+
+endif # CXD56_RTC
 
 menuconfig CXD56_TIMER
 	bool "Timer"
@@ -162,6 +188,7 @@ comment "Storage Options"
 
 menuconfig CXD56_SFC
 	bool "SPI Flash"
+	default n if CXD56_SUBCORE
 	default y
 
 if CXD56_SFC
@@ -247,6 +274,7 @@ endif # SPISD Configuration
 config CXD56_EMMC
 	bool "eMMC"
 	default y if BOARD_CORVO
+	default n if CXD56_SUBCORE
 
 comment "Peripheral Options"
 
@@ -268,6 +296,46 @@ config CXD56_UART
 	default y
 
 if CXD56_UART
+
+config CXD56_UART0
+	bool "UART0"
+	default n
+	---help---
+		UART interface with hardware flow control in the application subsystem.
+
+if CXD56_UART0
+
+config CXD56_UART0_BAUD
+	int "CXD56 UART0 BAUD"
+	default 921600
+
+config CXD56_UART0_PARITY
+	int "CXd56 UART0 parity"
+	default 0
+	range 0 2
+	---help---
+		CXD56 UART0 parity.  0=None, 1=Odd, 2=Even.  Default: None
+
+config CXD56_UART0_BITS
+	int "CXD56 UART0 number of bits"
+	default 8
+	range 5 8
+	---help---
+		CXD56 UART0 number of bits.  Default: 8
+
+config CXD56_UART0_2STOP
+	int "CXD56 UART0 two stop bits"
+	default 0
+	---help---
+		0=1 stop bit, 1=Two stop bits.  Default: 1 stop bit
+
+config CXD56_UART0_FLOWCONTROL
+	bool "CXD56 UART0 flow control"
+	default n
+	---help---
+		Enable CXD56 UART0 RTS flow control
+
+endif
 
 config CXD56_UART1
 	bool "UART1"
@@ -551,17 +619,18 @@ config CXD56_HPADC0_FREQ
 	default 7 if CXD56_SCU_RCOSC
 	default 7 if CXD56_SCU_XOSC
 	range 9 11 if CXD56_SCU_32K
-	range 7 7 if CXD56_SCU_RCOSC
-	range 6 7 if CXD56_SCU_XOSC
+	range 0 7 if CXD56_SCU_RCOSC
+	range 0 7 if CXD56_SCU_XOSC
 	---help---
 		This configuration set to sampling frequency calculated by the following formula.
 			Sampling frequency = adc clock / 2 ^ n [Hz]
-			adc clock = SCU clock     : if SCU clock is SCU32K or RCOSC.
-			adc clock = SCU clock / 3 : if SCU clock is XOSC.
+			adc clock = SCU32K       : if SCU clock is SCU32K.
+			adc clock = RCOSC / 4    : if SCU clock is RCOSC.
+			adc clock = XOSC / 3 / 4 : if SCU clock is XOSC 26MHz.
 		Note. Setable range depends on the SCU clock mode.
 			SCU32K : 9 to 11
-			RCOSC  : 7 (fix)
-			XOSC   : 6 to 7
+			RCOSC  : 0 to 7 (0 ~ 6 : over-sampling mode)
+			XOSC   : 0 to 7 (0 ~ 6 : over-sampling mode)
 
 config CXD56_HPADC0_OFFSET
 	int "Offset"
@@ -594,17 +663,18 @@ config CXD56_HPADC1_FREQ
 	default 7 if CXD56_SCU_RCOSC
 	default 7 if CXD56_SCU_XOSC
 	range 9 11 if CXD56_SCU_32K
-	range 7 7 if CXD56_SCU_RCOSC
-	range 6 7 if CXD56_SCU_XOSC
+	range 0 7 if CXD56_SCU_RCOSC
+	range 0 7 if CXD56_SCU_XOSC
 	---help---
 		This configuration set to sampling frequency calculated by the following formula.
 			Sampling frequency = adc clock / 2 ^ n [Hz]
-			adc clock = SCU clock     : if SCU clock is SCU32K or RCOSC.
-			adc clock = SCU clock / 3 : if SCU clock is XOSC.
+			adc clock = SCU32K       : if SCU clock is SCU32K.
+			adc clock = RCOSC / 4    : if SCU clock is RCOSC.
+			adc clock = XOSC / 3 / 4 : if SCU clock is XOSC 26MHz.
 		Note. Setable range depends on the SCU clock mode.
 			SCU32K : 9 to 11
-			RCOSC  : 7 (fix)
-			XOSC   : 6 to 7
+			RCOSC  : 0 to 7 (0 ~ 6 : over-sampling mode)
+			XOSC   : 0 to 7 (0 ~ 6 : over-sampling mode)
 
 config CXD56_HPADC1_OFFSET
 	int "Offset"
@@ -1565,6 +1635,49 @@ endmenu
 
 endif # CXD56_AUDIO
 
+comment "LTE Options"
+
+menuconfig CXD56_LTE
+	bool "LTE"
+	default n
+
+if CXD56_LTE
+
+choice
+	prompt "LTE SPI selection"
+	default CXD56_LTE_SPI4
+
+config CXD56_LTE_SPI4
+	bool "Use SPI4"
+	select CXD56_SPI4
+
+config CXD56_LTE_SPI5
+	bool "Use SPI5"
+	select CXD56_SPI5
+endchoice
+
+if CXD56_LTE_SPI4
+
+config CXD56_LTE_SPI4_DMAC
+	bool "Use DMAC for SPI4"
+	default y
+	select CXD56_DMAC_SPI4_TX
+	select CXD56_DMAC_SPI4_RX
+
+endif # CXD56_LTE_SPI4
+
+if CXD56_LTE_SPI5
+
+config CXD56_LTE_SPI5_DMAC
+	bool "Use DMAC for SPI5"
+	default y
+	select CXD56_DMAC_SPI5_TX
+	select CXD56_DMAC_SPI5_RX
+
+endif # CXD56_LTE_SPI4
+
+endif # CXD56_LTE
+
 comment "Power Management Options"
 
 menuconfig CXD56_PM
@@ -1642,7 +1755,8 @@ endif
 config CXD56_CHARGER
 	bool "CXD5247 battery charger"
 	default n
-	depends on BOARD_CORVO || BOARD_COLLET
+# Disable anyway
+#	depends on BOARD_CORVO || BOARD_COLLET
 	---help---
 		Enable battery charger driver.
 		This is not a lower half of power driver, but compatible with NuttX charger driver.
@@ -1665,7 +1779,20 @@ config CXD56_CHARGER_DEBUG
 
 endif
 
+config CXD56_GE2D
+	bool "Graphics Engine"
+	default n
+	---help---
+		A hardware image processor device.
+
 comment "Debug Features"
+
+config CXD56_BOOT_PROGRESS
+	bool "Boot progress"
+	default n
+	---help---
+		Enable to show boot status by a character print of showprogress().
+		If boot is successful, it will be shown 'AEG' messages on console.
 
 config CXD56_BACKUPLOG
 	bool "Backup Log driver"
@@ -1677,6 +1804,16 @@ config CXD56_RESET_ON_CRASH
 	---help---
 		If selected the board_crashdump should reset the machine after
 		saveing the state of the machine
+
+endmenu
+
+menu "Library Routines"
+
+config LIBM_NEWLIB
+	bool "Newlib Math library"
+	default y
+	---help---
+		Use newlib math library instead of one provided by NuttX.
 
 endmenu
 

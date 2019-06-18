@@ -57,6 +57,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "audio/audio_common_defs.h"
 #include "audio/audio_object_common_api.h"
 
 /****************************************************************************
@@ -94,6 +95,10 @@ typedef enum
 
   AsRecorderEventAct = 0,
 
+  /*! \brief Deactivate */
+
+  AsRecorderEventDeact,
+
   /*! \brief Init */
 
   AsRecorderEventInit,
@@ -102,13 +107,13 @@ typedef enum
 
   AsRecorderEventStart,
 
+  /*! \brief Req Encode */
+
+  AsRecorderEventReqEncode,
+
   /*! \brief Stop */
 
-  AsRecorderEventStop,
-
-  /*! \brief Deactivate */
-
-  AsRecorderEventDeact,
+  AsRecorderEventStop
 
 } AsRecorderEvent;
 
@@ -122,17 +127,12 @@ typedef enum
 
   AS_SETRECDR_STS_INPUTDEVICE_MIC = 0,
 
-  /*! \brief I2S Input */
-
-  AS_SETRECDR_STS_INPUTDEVICE_I2S,
-
   /* Note:
    * Delete this definition with Ver 1.1.0
    */
 
   AS_SETRECDR_STS_INPUTDEVICE_MIC_A = AS_SETRECDR_STS_INPUTDEVICE_MIC,
   AS_SETRECDR_STS_INPUTDEVICE_MIC_D = AS_SETRECDR_STS_INPUTDEVICE_MIC,
-  AS_SETRECDR_STS_INPUTDEVICE_I2S_IN = AS_SETRECDR_STS_INPUTDEVICE_I2S,
 
   AS_SETRECDR_STS_INPUTDEVICE_NUM
 } AsSetRecorderStsInputDevice;
@@ -453,6 +453,17 @@ bool AS_ActivateMediaRecorder(FAR AsActivateRecorder *actparam);
 bool AS_InitMediaRecorder(FAR AsInitRecorderParam *initparam);
 
 /**
+ * @brief Request encode to audio recorder
+ *
+ * @param[in] pcmparam: Information of target PCM data
+ *
+ * @retval     true  : success
+ * @retval     false : failure
+ */
+
+bool AS_ReqEncodeMediaRecorder(AsPcmDataParam *pcmparam);
+
+/**
  * @brief Start audio recorder
  *
  * @retval     true  : success
@@ -487,6 +498,15 @@ bool AS_DeactivateMediaRecorder(void);
  */
 
 bool AS_DeleteMediaRecorder(void);
+
+/**
+ * @brief Check availability of MediaRecorder 
+ *
+ * @retval     true  : avaliable 
+ * @retval     false : Not available 
+ */
+
+bool AS_checkAvailabilityMediaRecorder(void);
 
 #endif  /* __MODULES_INCLUDE_AUDIO_AUDIO_RECORDER_API_H */
 /**

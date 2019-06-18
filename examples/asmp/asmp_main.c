@@ -73,7 +73,7 @@
 #endif
 
 #ifndef MOUNTPT
-#  define MOUNTPT "/mnt/vfat/BIN"
+#  define MOUNTPT "/mnt/sd0/BIN"
 #endif
 
 /* MP object keys. Must be synchronized with worker. */
@@ -147,7 +147,7 @@ static int run_worker(const char *filename, int target_cpu_id)
   ret = mptask_assign(&mptask);
   if (ret != 0)
     {
-      err("mptask_asign() failure. %d\n", ret);
+      err("mptask_assign() failure. %d\n", ret);
       return ret;
     }
 

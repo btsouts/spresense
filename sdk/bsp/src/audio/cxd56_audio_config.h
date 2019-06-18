@@ -99,12 +99,6 @@ enum cxd56_audio_cfg_i2s_bypass_e
   CXD56_AUDIO_CFG_I2S_BYPASS_ENABLE
 };
 
-enum cxd56_audio_cfg_lowemi_e
-{
-  CXD56_AUDIO_CFG_LOEMI_2MA = 0,
-  CXD56_AUDIO_CFG_LOEMI_4MA
-};
-
 enum cxd56_audio_cfg_cic_in_sel_e
 {
   CXD56_AUDIO_CFG_CIC_IN_SEL_NONE = 0,
@@ -274,22 +268,6 @@ enum cxd56_audio_cfg_sp_spliton_e
 #  define CXD56_AUDIO_CFG_I2S2_DATA_RATE   0
 #endif
 
-/* Drive strength of PDM signals */
-
-#if defined(CONFIG_CXD56_AUDIO_PDM_LOWEMI_2MA)
-#  define CXD56_AUDIO_CFG_PDM_DS CXD56_AUDIO_CFG_LOEMI_2MA
-#else
-#  define CXD56_AUDIO_CFG_PDM_DS CXD56_AUDIO_CFG_LOEMI_4MA
-#endif
-
-/* Drive strength of I2S signals */
-
-#if defined(CONFIG_CXD56_AUDIO_I2S_LOWEMI_2MA)
-#  define CXD56_AUDIO_CFG_I2S_DS CXD56_AUDIO_CFG_LOEMI_2MA
-#else
-#  define CXD56_AUDIO_CFG_I2S_DS CXD56_AUDIO_CFG_LOEMI_4MA
-#endif
-
 /* CIC filter input path */
 
 #if defined(CONFIG_CXD56_AUDIO_CIC_IN_SEL_CXD)
@@ -399,5 +377,7 @@ void cxd56_audio_config_set_spdriver(cxd56_audio_sp_drv_t sp_driver);
 cxd56_audio_sp_drv_t cxd56_audio_config_get_spdriver(void);
 void cxd56_audio_config_set_clkmode(cxd56_audio_clkmode_t mode);
 cxd56_audio_clkmode_t cxd56_audio_config_get_clkmode(void);
+void cxd56_audio_config_set_micmap(uint32_t map);
+uint32_t cxd56_audio_config_get_micmap(void);
 
 #endif /* __BSP_SRC_AUDIO_CXD56_AUDIO_CONFIG_H */

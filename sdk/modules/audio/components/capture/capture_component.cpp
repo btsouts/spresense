@@ -33,7 +33,6 @@
  *
  ****************************************************************************/
 
-#include <arch/chip/cxd56_audio.h>
 #include "capture_component.h"
 
 #include "dma_controller/audio_dma_drv.h"
@@ -180,11 +179,26 @@ static void AS_CaptureNotifyDmaDoneDev0(AudioDrvDmaResult *p_param)
       return;
     }
 
-  /* When receive end frame, Clera remaing que */
+  /* Notify invalid frames which couldn't read DMA. */
 
-  if (result.end_flag)
+  while (!instance->m_req_data_que.empty())
     {
-      instance->m_req_data_que.clear();
+      if (instance->m_req_data_que.top().validity)
+        {
+          break;
+        }
+
+      result.output_device = instance->m_output_device;
+      result.end_flag      = false;
+      result.buf           = instance->m_req_data_que.top();
+
+      instance->m_callback(result);
+
+      if (!instance->m_req_data_que.pop())
+        {
+          CAPTURE_ERR(AS_ATTENTION_SUB_CODE_QUEUE_POP_ERROR);
+          return;
+        }
     }
 }
 
@@ -214,9 +228,24 @@ static void AS_CaptureNotifyDmaDoneDev1(AudioDrvDmaResult *p_param)
       return;
     }
 
-  if (result.end_flag)
+  while (!instance->m_req_data_que.empty())
     {
-      instance->m_req_data_que.clear();
+      if (instance->m_req_data_que.top().validity)
+        {
+          break;
+        }
+
+      result.output_device = instance->m_output_device;
+      result.end_flag      = false;
+      result.buf           = instance->m_req_data_que.top();
+
+      instance->m_callback(result);
+
+      if (!instance->m_req_data_que.pop())
+        {
+          CAPTURE_ERR(AS_ATTENTION_SUB_CODE_QUEUE_POP_ERROR);
+          return;
+        }
     }
 }
 #endif
@@ -240,10 +269,14 @@ static void AS_CaptureNotifyDmaError(AudioDrvDmaError *p_param)
 
       case E_AS_BB_DMA_ILLEGAL:
       case E_AS_BB_DMA_ERR_BUS:
-      case E_AS_BB_DMA_ERR_INT:
       case E_AS_BB_DMA_ERR_START:
       case E_AS_BB_DMA_ERR_REQUEST:
           F_ASSERT(0);
+          break;
+
+      case E_AS_BB_DMA_ERR_INT:
+          errparam.error_type = CaptureErrorErrInt;
+          instance->m_err_callback(errparam);
           break;
 
       case E_AS_BB_DMA_UNDERFLOW:
@@ -335,6 +368,13 @@ bool AS_CreateCapture(FAR AsCreateCaptureParam_t *param)
   s_self_dtq[0]      = dev0_self_dtq;
   s_self_sync_dtq[0] = dev0_self_sync_dtq;
 
+  /* Reset Message queue. */
+
+  FAR MsgQueBlock *que;
+  err_t err_code = MsgLib::referMsgQueBlock(dev0_self_dtq, &que);
+  F_ASSERT(err_code == ERR_OK);
+  que->reset();
+
   s_capture_pid[0] = task_create("CAPTURE_CMP_DEV0",
                                  200,
                                  1024 * 2,
@@ -367,6 +407,12 @@ bool AS_CreateCapture(FAR AsCreateCaptureParam_t *param)
 
       s_self_dtq[1]      = dev1_self_dtq;
       s_self_sync_dtq[1] = dev1_self_sync_dtq;
+
+      /* Reset Message queue. */
+
+      err_code = MsgLib::referMsgQueBlock(dev1_self_dtq, &que);
+      F_ASSERT(err_code == ERR_OK);
+      que->reset();
 
       s_capture_pid[1] = task_create("CAPTURE_CMP_DEV1",
                                      200,
@@ -428,7 +474,7 @@ static bool rcv_result(int ch)
 
   err_code = que->recv(TIME_FOREVER, &msg);
   F_ASSERT(err_code == ERR_OK);
-  F_ASSERT(msg->getType() == MSG_AUD_BB_RST);
+  F_ASSERT(msg->getType() == MSG_AUD_CAP_RST);
 
   bool result = msg->moveParam<bool>();
   err_code = que->pop();
@@ -456,10 +502,6 @@ bool AS_get_capture_comp_handler(CaptureComponentHandler *p_handle,
           param.act_param.dma_path_id = CXD56_AUDIO_DMA_PATH_MIC_TO_MEM;
           break;
 
-      case CaptureDeviceI2S:
-          param.act_param.dma_path_id = CXD56_AUDIO_DMA_PATH_I2S0_TO_MEM;
-          break;
-
       default:
           CAPTURE_ERR(AS_ATTENTION_SUB_CODE_UNEXPECTED_PARAM);
           return false;
@@ -468,7 +510,7 @@ bool AS_get_capture_comp_handler(CaptureComponentHandler *p_handle,
   param.act_param.output_device = device_type;
   param.act_param.mem_pool_id   = mem_pool_id;
 
-  if (!s_pFactory->parse(*p_handle, MSG_AUD_BB_CMD_ACT, param))
+  if (!s_pFactory->parse(*p_handle, MSG_AUD_CAP_CMD_ACT, param))
     {
       return false;
     }
@@ -483,7 +525,7 @@ bool AS_release_capture_comp_handler(CaptureComponentHandler handle)
 {
   CaptureComponentParam param;
 
-  s_pFactory->parse(handle, MSG_AUD_BB_CMD_DEACT, param);
+  s_pFactory->parse(handle, MSG_AUD_CAP_CMD_DEACT, param);
 
   /* Wait response of DEACTIVATE */
 
@@ -512,7 +554,7 @@ bool AS_init_capture(const CaptureComponentParam *param)
 
   /* Init */
 
-  if (!s_pFactory->parse(param->handle, MSG_AUD_BB_CMD_INIT, *param))
+  if (!s_pFactory->parse(param->handle, MSG_AUD_CAP_CMD_INIT, *param))
     {
       return false;
     }
@@ -532,7 +574,7 @@ bool AS_exec_capture(const CaptureComponentParam *param)
 
   /* Execute */
 
-  if (!s_pFactory->parse(param->handle, MSG_AUD_BB_CMD_RUN, *param))
+  if (!s_pFactory->parse(param->handle, MSG_AUD_CAP_CMD_RUN, *param))
     {
       return false;
     }
@@ -552,12 +594,34 @@ bool AS_stop_capture(const CaptureComponentParam *param)
 
   /* Stop */
 
-  if (!s_pFactory->parse(param->handle, MSG_AUD_BB_CMD_STOP, *param))
+  if (!s_pFactory->parse(param->handle, MSG_AUD_CAP_CMD_STOP, *param))
     {
       return false;
     }
 
   /* Wait response of STOP */
+
+  return rcv_result(param->handle);
+}
+
+/*--------------------------------------------------------------------*/
+bool AS_set_micgain_capture(const CaptureComponentParam *param)
+{
+  /* Parameter check */
+
+  if (param == NULL)
+    {
+      return false;
+    }
+
+  /* Set Mic Gain */
+
+  if (!s_pFactory->parse(param->handle, MSG_AUD_CAP_CMD_SETMICGAIN, *param))
+    {
+      return false;
+    }
+
+  /* Wait response of Set Mic Gain */
 
   return rcv_result(param->handle);
 }
@@ -591,7 +655,7 @@ static void dma_notify_cmplt_int(cxd56_audio_dma_t dmacId, uint32_t dma_result)
 
   err_t err = MsgLib::sendIsr<CaptureComponentParam>(s_self_dtq[handle],
                                                      MsgPriNormal,
-                                                     MSG_AUD_BB_CMD_CMPLT,
+                                                     MSG_AUD_CAP_CMD_CMPLT,
                                                      s_self_sync_dtq[handle],
                                                      param);
   F_ASSERT(err == ERR_OK);
@@ -623,54 +687,69 @@ bool CaptureCompFactory::parse(CaptureComponentHandler handle,
 /*--------------------------------------------------------------------
     Class Methods
   --------------------------------------------------------------------*/
-CaptureComponent::EvtProc CaptureComponent::EvetProcTbl[AUD_BB_MSG_NUM][StateNum] =
+CaptureComponent::EvtProc CaptureComponent::EvetProcTbl[AUD_CAP_MSG_NUM][StateNum] =
 {
-  /* Message type: MSG_AUD_BB_CMD_ACT */
+  /* Message type: MSG_AUD_CAP_CMD_ACT */
   {                                  /* Capture status: */
     &CaptureComponent::act,          /*   Booted        */
     &CaptureComponent::illegal,      /*   Ready         */
     &CaptureComponent::illegal,      /*   PreAct        */
-    &CaptureComponent::illegal       /*   Act           */
+    &CaptureComponent::illegal,      /*   Act           */
+    &CaptureComponent::illegal       /*   Error         */
   },
 
-  /* Message type: MSG_AUD_BB_CMD_DEACT */
+  /* Message type: MSG_AUD_CAP_CMD_DEACT */
   {                                  /* Capture status: */
     &CaptureComponent::illegal,      /*   Booted        */
     &CaptureComponent::deact,        /*   Ready         */
     &CaptureComponent::illegal,      /*   PreAct        */
-    &CaptureComponent::illegal       /*   Act           */
+    &CaptureComponent::illegal,      /*   Act           */
+    &CaptureComponent::illegal       /*   Error         */
   },
 
-  /* Message type: MSG_AUD_BB_CMD_INIT */
+  /* Message type: MSG_AUD_CAP_CMD_INIT */
   {                                  /* Capture status: */
     &CaptureComponent::illegal,      /*   Booted        */
     &CaptureComponent::init,         /*   Ready         */
     &CaptureComponent::illegal,      /*   PreAct        */
-    &CaptureComponent::illegal       /*   Act           */
+    &CaptureComponent::illegal,      /*   Act           */
+    &CaptureComponent::illegal       /*   Error         */
   },
 
-  /* Message type: MSG_AUD_BB_CMD_RUN */
+  /* Message type: MSG_AUD_CAP_CMD_RUN */
   {                                  /* Capture status: */
     &CaptureComponent::illegal,      /*   Booted        */
     &CaptureComponent::execOnRdy,    /*   Ready         */
     &CaptureComponent::execOnPreAct, /*   PreAct        */
-    &CaptureComponent::execOnAct     /*   Act           */
+    &CaptureComponent::execOnAct,    /*   Act           */
+    &CaptureComponent::execOnError   /*   Error         */
   },
 
-  /* Message type: MSG_AUD_BB_CMD_STOP */
+  /* Message type: MSG_AUD_CAP_CMD_STOP */
   {                                  /* Capture status: */
     &CaptureComponent::illegal,      /*   Booted        */
     &CaptureComponent::stopOnReady,  /*   Ready         */
     &CaptureComponent::stopOnPreAct, /*   PreAct        */
-    &CaptureComponent::stopOnAct     /*   Act           */
+    &CaptureComponent::stopOnAct,    /*   Act           */
+    &CaptureComponent::stopOnError   /*   Error         */
   },
 
-  /* Message type: MSG_AUD_BB_CMD_CMPLT */
+  /* Message type: MSG_AUD_CAP_CMD_SETMICGAIN */
+  {                                  /* Capture status: */
+    &CaptureComponent::illegal,      /*   Booted        */
+    &CaptureComponent::setMicGain,   /*   Ready         */
+    &CaptureComponent::setMicGain,   /*   PreAct        */
+    &CaptureComponent::setMicGain,   /*   Act           */
+    &CaptureComponent::setMicGain    /*   Error         */
+  },
+
+  /* Message type: MSG_AUD_CAP_CMD_CMPLT */
   {                                  /* Capture status: */
     &CaptureComponent::illegal,      /*   Booted        */
     &CaptureComponent::notify,       /*   Ready         */
     &CaptureComponent::notify,       /*   PreAct        */
-    &CaptureComponent::notify        /*   Act           */
+    &CaptureComponent::notify,       /*   Act           */
+    &CaptureComponent::notify        /*   Error         */
   },
 };
 
@@ -757,7 +836,7 @@ bool CaptureComponent::act(const CaptureComponentParam& param)
 
   err_t err = MsgLib::send<bool>(m_self_sync_dtq,
                                  MsgPriNormal,
-                                 MSG_AUD_BB_RST,
+                                 MSG_AUD_CAP_RST,
                                  NULL,
                                  result);
   F_ASSERT(err == ERR_OK);
@@ -790,7 +869,7 @@ bool CaptureComponent::deact(const CaptureComponentParam& param)
 
   err_t err = MsgLib::send<bool>(m_self_sync_dtq,
                                  MsgPriNormal,
-                                 MSG_AUD_BB_RST,
+                                 MSG_AUD_CAP_RST,
                                  NULL,
                                  result);
   F_ASSERT(err == ERR_OK);
@@ -848,6 +927,15 @@ bool CaptureComponent::init(const CaptureComponentParam& param)
 
   m_ch_num = param.init_param.capture_ch_num;
 
+  if ((param.init_param.preset_num > PRE_REQ_QUE_NUM)
+   || (param.init_param.preset_num > MemMgrLite::Manager::getPoolNumAvailSegs(m_mem_pool_id)))
+    {
+      CAPTURE_ERR(AS_ATTENTION_SUB_CODE_UNEXPECTED_PARAM);
+      result = false;
+    }
+
+  m_preset_num = param.init_param.preset_num;
+
   return result;
 }
 
@@ -882,15 +970,17 @@ bool CaptureComponent::execOnPreAct(const CaptureComponentParam& param)
    * send read request to DMAC and start.
    */
 
-  if (m_cap_pre_que.full())
+  if (m_preset_num <= m_cap_pre_que.size())
     {
       while (!m_cap_pre_que.empty())
         {
           asReadDmacParam dmac_param;
           CaptureComponentParam pre = m_cap_pre_que.top();
 
+          CaptureBuffer capbuf = getCapBuf(pre.exec_param.pcm_sample);
+
           dmac_param.dmacId   = m_dmac_id;
-          dmac_param.addr     = (uint32_t)getCapBuf(pre.exec_param.pcm_sample);
+          dmac_param.addr     = (uint32_t)((capbuf.cap_mh.isNull()) ? NULL : capbuf.cap_mh.getPa());
           dmac_param.size     = pre.exec_param.pcm_sample;
           dmac_param.addr2    = 0;
           dmac_param.size2    = 0;
@@ -898,9 +988,14 @@ bool CaptureComponent::execOnPreAct(const CaptureComponentParam& param)
 
           if (E_AS_OK != AS_ReadDmac(&dmac_param))
             {
-              m_req_data_que.pop();
-              return false;
+              capbuf.validity = false;
             }
+          else
+            {
+              capbuf.validity = true;
+            }
+
+          enqueDmaReqQue(capbuf);
 
           if (!m_cap_pre_que.pop())
             {
@@ -924,8 +1019,10 @@ bool CaptureComponent::execOnAct(const CaptureComponentParam& param)
 {
   asReadDmacParam dmac_param;
 
+  CaptureBuffer capbuf = getCapBuf(param.exec_param.pcm_sample);
+
   dmac_param.dmacId   = m_dmac_id;
-  dmac_param.addr     = (uint32_t)getCapBuf(param.exec_param.pcm_sample);
+  dmac_param.addr     = (uint32_t)((capbuf.cap_mh.isNull()) ? NULL : capbuf.cap_mh.getPa());
   dmac_param.size     = param.exec_param.pcm_sample;
   dmac_param.addr2    = 0;
   dmac_param.size2    = 0;
@@ -933,9 +1030,29 @@ bool CaptureComponent::execOnAct(const CaptureComponentParam& param)
 
   if (E_AS_OK != AS_ReadDmac(&dmac_param))
     {
-      m_req_data_que.pop();
-      return false;
+      capbuf.validity = false;
     }
+  else
+    {
+      capbuf.validity = true;
+    }
+
+  enqueDmaReqQue(capbuf);
+
+  return true;
+}
+
+/*--------------------------------------------------------------------*/
+bool CaptureComponent::execOnError(const CaptureComponentParam& param)
+{
+  CaptureBuffer invalid_req;
+
+  /* Hold as invalid capture request. */
+
+  invalid_req.sample = param.exec_param.pcm_sample;
+  invalid_req.validity = false;
+
+  enqueDmaReqQue(invalid_req);
 
   return true;
 }
@@ -955,7 +1072,7 @@ bool CaptureComponent::stopOnPreAct(const CaptureComponentParam& param)
 
   err_t err = MsgLib::send<bool>(m_self_sync_dtq,
                                  MsgPriNormal,
-                                 MSG_AUD_BB_RST,
+                                 MSG_AUD_CAP_RST,
                                  NULL,
                                  result);
   F_ASSERT(err == ERR_OK);
@@ -982,7 +1099,49 @@ bool CaptureComponent::stopOnAct(const CaptureComponentParam& param)
 
   err_t err = MsgLib::send<bool>(m_self_sync_dtq,
                                  MsgPriNormal,
-                                 MSG_AUD_BB_RST,
+                                 MSG_AUD_CAP_RST,
+                                 NULL,
+                                 result);
+  F_ASSERT(err == ERR_OK);
+
+  return result;
+}
+
+/*--------------------------------------------------------------------*/
+bool CaptureComponent::stopOnError(const CaptureComponentParam& param)
+{
+  return stopOnAct(param);
+}
+
+/*--------------------------------------------------------------------*/
+bool CaptureComponent::setMicGain(const CaptureComponentParam& param)
+{
+  bool result = true;
+
+  CAPTURE_DBG("SETMICGAIN:\n");
+
+  cxd56_audio_mic_gain_t cxd56_mic_gain;
+
+  for (int i = 0; i < CXD56_AUDIO_MIC_CH_MAX; i++)
+    {
+      if (i < MAX_CAPTURE_MIC_CH)
+        {
+          cxd56_mic_gain.gain[i] = param.set_micgain_param->mic_gain[i];
+        }
+      else
+        {
+          cxd56_mic_gain.gain[i] = 0;
+        }
+    }
+
+  if (CXD56_AUDIO_ECODE_OK != cxd56_audio_set_micgain(&cxd56_mic_gain))
+    {
+      result = false;
+    }
+
+  err_t err = MsgLib::send<bool>(m_self_sync_dtq,
+                                 MsgPriNormal,
+                                 MSG_AUD_CAP_RST,
                                  NULL,
                                  result);
   F_ASSERT(err == ERR_OK);
@@ -999,12 +1158,44 @@ bool CaptureComponent::notify(const CaptureComponentParam& param)
     {
       case NtfDmaCmplt:
         {
+          if (param.notify_param.code == E_AS_DMA_INT_ERR)
+            {
+              if (m_state != Ready)
+                {
+                  m_state = Error;
+                }
+
+              /* If DMA ERRINT occured, following capture data
+               * will not come, so reply to all of request here.  
+               */
+
+              while (!m_req_data_que.empty())
+                {
+                  CaptureDataParam capresult;
+
+                  capresult.output_device = m_output_device;
+                  capresult.end_flag      = false;
+                  capresult.buf           = m_req_data_que.top();
+                  capresult.buf.sample    = 0;
+                  capresult.buf.validity  = false;
+
+                  m_callback(capresult);
+
+                  if (!m_req_data_que.pop())
+                    {
+                      CAPTURE_ERR(AS_ATTENTION_SUB_CODE_QUEUE_POP_ERROR);
+                      return false;
+                    }
+                }
+            }
+
           if (E_AS_OK != AS_NotifyDmaCmplt
                                   (m_dmac_id,
                                    param.notify_param.code))
             {
               return false;
             }
+
           result = true;
         }
         break;
@@ -1017,32 +1208,35 @@ bool CaptureComponent::notify(const CaptureComponentParam& param)
 }
 
 /*--------------------------------------------------------------------*/
-void* CaptureComponent::getCapBuf(uint32_t cap_sample)
+CaptureBuffer CaptureComponent::getCapBuf(uint32_t cap_sample)
 {
   /* Allocate memory for capture, and push to request que */
 
-  MemMgrLite::MemHandle mh;
+  CaptureBuffer buf;
 
-  if (mh.allocSeg(m_mem_pool_id,
-                  cap_sample * m_ch_num * 2)
+
+  if (buf.cap_mh.allocSeg(m_mem_pool_id,
+                          cap_sample * m_ch_num * 2)
       != ERR_OK)
     {
       CAPTURE_WARN(AS_ATTENTION_SUB_CODE_MEMHANDLE_ALLOC_ERROR);
-      return NULL;
     }
 
-  CaptureBuffer buf;
-
-  buf.cap_mh = mh;
   buf.sample = cap_sample;
 
+  return buf;
+}
+
+/*--------------------------------------------------------------------*/
+bool CaptureComponent::enqueDmaReqQue(CaptureBuffer buf)
+{
   if (!m_req_data_que.push(buf))
     {
-      CAPTURE_ERR(AS_ATTENTION_SUB_CODE_MEMHANDLE_ALLOC_ERROR);
-      return NULL;
+      CAPTURE_ERR(AS_ATTENTION_SUB_CODE_QUEUE_PUSH_ERROR);
+      return false;
     }
 
-  return mh.getPa();
+  return true;
 }
 
 __WIEN2_END_NAMESPACE

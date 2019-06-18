@@ -42,7 +42,7 @@ NUTTXDIR ?= ../nuttx
 
 # Setup for Windows vs Linux/Cygwin/OSX environments
 
-ifeq ("$(shell uname -o)","Cygwin")
+ifeq ("$(shell uname -o 2>/dev/null)","Cygwin")
     WINTOOL = y
 endif
 
@@ -128,7 +128,7 @@ all: $(BIN)
 # automatically.
 
 buildkernel:
-	$(Q) $(SDKDIR)/tools/mkversion.sh
+	$(Q) TOPDIR=$(TOPDIR) $(SDKDIR)/tools/mkversion.sh
 ifneq ($(KERNCONF),)
 	$(Q) $(SDKDIR)/tools/config.py --kernel $(KERNCONF)
 endif
@@ -150,6 +150,7 @@ installkernel:
 		$(ARCROSSDEV)ar d lib/libarch.a cxd56_uart.o; \
 		$(ARCROSSDEV)ar d lib/libarch.a cxd56_timerisr.o; \
 		$(ARCROSSDEV)ar d lib/libarch.a cxd56_idle.o; \
+		$(ARCROSSDEV)ar d lib/libarch.a cxd56_start.o; \
 		$(ARCROSSDEV)ar d lib/libarch.a up_udelay.o; \
 		$(ARCROSSDEV)ar d lib/libarch.a up_mdelay.o; \
 	fi
@@ -257,7 +258,7 @@ cleankernel:
 	$(Q) $(MAKE) -C $(TOPDIR) clean
 PHONY += cleankernel
 
-distcleankernel:
+distcleankernel: distclean
 	$(Q) $(MAKE) -C $(TOPDIR) distclean
 PHONY += distcleankernel
 

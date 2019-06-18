@@ -46,10 +46,14 @@
 #include "osal.h"
 #include "hal_if.h"
 #include "evtdisp.h"
+#include "apicmd.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+#define APICMDGW_RECVBUFF_SIZE_MAX \
+  (APICMD_PAYLOAD_SIZE_MAX + sizeof(struct apicmd_cmdhdr_s))
 
 #define APICMDGW_SEND_ONLY(cmd) \
   (apicmdgw_send(cmd, NULL, 0, NULL, 0))
@@ -130,6 +134,23 @@ int32_t apicmdgw_fin(void);
 
 int32_t apicmdgw_send(FAR uint8_t *cmd, FAR uint8_t *respbuff,
     uint16_t bufflen, FAR uint16_t *resplen, int32_t timeout_ms);
+
+/****************************************************************************
+ * Name: apicmdgw_sendabort
+ *
+ * Description:
+ *   Abort api command send, And release waiting syun command response.
+ *
+ * Input Parameters:
+ *   None.
+ *
+ * Returned Value:
+ *   On success, the length of the sent command in bytes is returned.
+ *   On failure, negative value is returned.
+ *
+ ****************************************************************************/
+
+int32_t apicmdgw_sendabort(void);
 
 /****************************************************************************
  * Name: apicmdgw_cmd_allocbuff

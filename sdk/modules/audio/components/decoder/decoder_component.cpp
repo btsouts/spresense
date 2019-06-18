@@ -373,7 +373,11 @@ uint32_t DecoderComponent::init_apu(const InitDecCompParam& param,
 
   send_apu(p_apu_cmd);
 
-  uint32_t rst = dsp_init_check(m_apu_mid, dsp_inf);
+  /* Wait init completion and receive reply information */
+
+  Apu::InternalResult internal_result;
+  uint32_t rst = dsp_init_check(m_apu_mid, &internal_result);
+  *dsp_inf = internal_result.value;
 
   return rst;
 }
@@ -504,12 +508,16 @@ bool DecoderComponent::recv_apu(void *p_response)
       logerr(" res_src = %d\n", packet->result.internal_result[0].res_src);
       logerr(" code    = %d\n", packet->result.internal_result[0].code);
       logerr(" value   = %d\n", packet->result.internal_result[0].value);
-      DECODER_ERR(AS_ATTENTION_SUB_CODE_DSP_EXEC_ERROR);
+      DECODER_WARN(AS_ATTENTION_SUB_CODE_DSP_EXEC_ERROR);
     }
 
   if (Apu::InitEvent == packet->header.event_type)
     {
-      dsp_init_complete(m_apu_mid, packet);
+      /* Notify init completion to myself */
+
+      Apu::InternalResult internal_result = packet->result.internal_result[0];
+      dsp_init_complete(m_apu_mid, packet->result.exec_result, &internal_result);
+
       return true;
     }
 

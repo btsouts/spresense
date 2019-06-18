@@ -37,10 +37,15 @@
  * Included Files
  ****************************************************************************/
 
-#include <nuttx/arch.h>
 #include <sdk/config.h>
-#include <arch/chip/cxd56_audio.h>
+
+#include <nuttx/arch.h>
+#include <sys/types.h>
+
 #include <math.h>
+
+#include <arch/chip/cxd56_audio.h>
+
 #include "audio/cxd56_audio_config.h"
 #include "audio/cxd56_audio_ac_reg.h"
 
@@ -866,7 +871,15 @@ static CXD56_AUDIO_ECODE set_srcin_sel(AC_REG_ID ac_reg_id,
         break;
 
       case CXD56_AUDIO_SIG_MIX:
-        val = SRCIN_SEL_CODECDSP_MIX;
+        if ((read_ac_reg(RI_COD_INSEL2) == COD_INSEL_SRC1)
+         || (read_ac_reg(RI_COD_INSEL3) == COD_INSEL_SRC1))
+          {
+            return CXD56_AUDIO_ECODE_REG_AC_SEL_INV;
+          }
+        else
+          {
+            val = SRCIN_SEL_CODECDSP_MIX;
+          }
         break;
 
       default:
@@ -1543,13 +1556,13 @@ void cxd56_audio_ac_reg_enable_i2s_src2(void)
 /*--------------------------------------------------------------------------*/
 void cxd56_audio_ac_reg_enable_i2s_bcklrckout(void)
 {
-  write_ac_reg(RI_SDCK_OUTENX, 1);
+  write_ac_reg(RI_SDCK_OUTENX, 0);
 }
 
 /*--------------------------------------------------------------------------*/
 void cxd56_audio_ac_reg_disable_i2s_bcklrckout(void)
 {
-  write_ac_reg(RI_SDCK_OUTENX, 0);
+  write_ac_reg(RI_SDCK_OUTENX, 1);
 }
 
 /*--------------------------------------------------------------------------*/

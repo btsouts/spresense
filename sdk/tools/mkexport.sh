@@ -140,7 +140,7 @@ fi
 
 # Check whether the environment is Cygwin and create the export directory
 
-if [ $(uname -o) = "Cygwin" ]; then
+if [ $(uname -o 2>/dev/null) = "Cygwin" ]; then
 	TMPDIR=`mktemp -d | cygpath -m -f -`
 else
 	TMPDIR=`mktemp -d`
@@ -338,6 +338,7 @@ LIBLIST="${LIBLIST} bsp/board/libboard${LIBEXT}"
 
 ARTMPDIR=`mktemp -d`
 AR=${CROSSDEV}ar
+STRIP=${CROSSDEV}strip
 for lib in ${LIBLIST}; do
 	if [ ! -f "${SDKDIR}/${lib}" ]; then
 		echo "MK: Library ${SDKDIR}/${lib} does not exist"
@@ -373,6 +374,10 @@ for lib in ${LIBLIST}; do
 			mv "${file}" "${shortname}-${file}"
 			${AR} rcs "${EXPORTSDKDIR}/libs/libsdk${LIBEXT}" "${shortname}-${file}"
 		done
+
+		# Remove debugging symbols
+
+		${STRIP} -g "${EXPORTSDKDIR}/libs/libsdk${LIBEXT}"
 
 		# Remove all of extracted object files
 

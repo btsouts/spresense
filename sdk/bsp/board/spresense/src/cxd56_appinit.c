@@ -117,13 +117,6 @@
 #endif
 
 /****************************************************************************
- * Private Data
- ****************************************************************************/
-
-static struct pm_cpu_freqlock_s g_hv_lock =
-  PM_CPUFREQLOCK_INIT(PM_CPUFREQLOCK_TAG('C','P',0), PM_CPUFREQLOCK_FLAG_HV);
-
-/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -179,7 +172,6 @@ static void timer_initialize(void)
 int board_app_initialize(uintptr_t arg)
 {
   struct pm_cpu_wakelock_s wlock;
-
   int ret;
 
   ret = nsh_cpucom_initialize();
@@ -217,11 +209,15 @@ int board_app_initialize(uintptr_t arg)
     }
 #endif
 
-  up_pm_acquire_freqlock(&g_hv_lock);
+#ifndef CONFIG_CXD56_SUBCORE
+  /* Initialize CPU clock to max frequency */
+
+  board_clock_initialize();
 
   /* Setup the power of external device */
 
   board_power_setup(0);
+#endif
 
 #ifdef CONFIG_CXD56_SCU
   scu_initialize();
@@ -229,11 +225,13 @@ int board_app_initialize(uintptr_t arg)
 
 #ifdef CONFIG_FS_PROCFS
 
-#ifdef CONFIG_FS_PROCFS_REGISTER
+#  ifdef CONFIG_FS_PROCFS_REGISTER
+#    ifdef CONFIG_USBDEV
   /* register usbdev procfs */
 
   (void)cxd56_usbdev_procfs_register();
-#endif
+#    endif
+#  endif
 
   ret = mount(NULL, "/proc", "procfs", 0, NULL);
   if (ret < 0)
@@ -298,6 +296,7 @@ int board_app_initialize(uintptr_t arg)
     }
 #endif
 
+#if defined(CONFIG_CXD56_SDIO) && !defined(CONFIG_CXD56_SPISD)
   /* In order to prevent Hi-Z from being input to the SD Card controller,
    * Initialize SDIO pins to GPIO low output with internal pull-down.
    */
@@ -310,7 +309,6 @@ int board_app_initialize(uintptr_t arg)
   cxd56_gpio_write(PIN_SDIO_DATA2, false);
   cxd56_gpio_write(PIN_SDIO_DATA3, false);
 
-#if defined(CONFIG_CXD56_SDIO) && !defined(CONFIG_CXD56_SPISD)
   ret = board_sdcard_initialize();
   if (ret < 0)
     {
@@ -330,7 +328,7 @@ int board_app_initialize(uintptr_t arg)
 #endif
 
 #ifdef CONFIG_MODEM_ALTMDM
-  ret = board_altmdm_initialize("/dev/altmdm", 5);
+  ret = board_altmdm_initialize("/dev/altmdm");
   if (ret < 0)
     {
       _err("ERROR: Failed to initialze Altair modem. \n");
@@ -338,7 +336,9 @@ int board_app_initialize(uintptr_t arg)
 #endif
 
 #ifdef CONFIG_CPUFREQ_RELEASE_LOCK
-  up_pm_release_freqlock(&g_hv_lock);
+  /* Enable dynamic clock control and CPU clock down for power saving */
+
+  board_clock_enable();
 #endif
 
   up_pm_release_wakelock(&wlock);
