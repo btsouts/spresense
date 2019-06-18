@@ -55,7 +55,8 @@
 
 #define ASSERT(cond) if (!(cond)) wk_abort()
 
-static const char helloworld[] = "Hello, ASMP World!";
+//static const char helloworld[] = "Hello, ASMP World!";
+static const char helloworld[] = "Hello 0";
 
 static char *strcopy(char *dest, const char *src)
 {
@@ -76,7 +77,7 @@ int main(void)
   mpshm_t shm;
   mpmq_t mq;
   uint32_t msgdata;
-  char *buf;
+  char *shared_buf;
   int ret;
 
   /* Initialize MP Mutex */
@@ -98,7 +99,7 @@ int main(void)
 
   /* Map shared memory to virtual space */
 
-  buf = (char *)mpshm_attach(&shm, 0);
+  shared_buf = (int *)mpshm_attach(&shm, 0);
   ASSERT(buf);
 
   /* Receive message from supervisor */
@@ -107,9 +108,10 @@ int main(void)
   ASSERT(ret == MSG_ID_SAYHELLO);
 
   /* Copy hello message to shared memory */
+  /*helloworld[6] = mptask_getcpuid(&mptask);*/
 
   mpmutex_lock(&mutex);
-  strcopy(buf, helloworld);
+  strcopy(shared_buf, helloworld);
   mpmutex_unlock(&mutex);
 
   /* Free virtual space */

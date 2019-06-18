@@ -113,7 +113,7 @@ static char fullpath[128];
  * Private Functions
  ****************************************************************************/
 
-static int run_worker(const char *filename)
+static int run_worker(const char *filename, int target_cpu_id)
 {
   mptask_t mptask;
   mpmutex_t mutex;
@@ -122,15 +122,27 @@ static int run_worker(const char *filename)
   uint32_t msgdata;
   int ret, wret;
   char *buf;
+  mptask_attr_t cpuAffAtr;
+
+  CPU_ZERO(cpuAffAtr->affinity);
+  CPU_SET(target_cpu_id,cpuAffAtr->affinity); 
 
   /* Initialize MP task */
-
   ret = mptask_init(&mptask, filename);
   if (ret != 0)
     {
       err("mptask_init() failure. %d\n", ret);
       return ret;
     }
+
+  ret = mptask_setattr(&mptask, &cpuAffAtr);
+  if (ret != 0)
+    {
+      err("mptask_setattr() failure. %d\n", ret);
+      return ret;
+    }
+
+  /* int mptask_setattr   (   mptask_t *    task, const mptask_attr_t *   attr ) */   
 
   ret = mptask_assign(&mptask);
   if (ret != 0)
@@ -155,7 +167,8 @@ static int run_worker(const char *filename)
     }
 
   /* Initialize MP message queue with asigned CPU ID, and bind it to MP task */
-
+  message("Target target_cpu_id is %d and getcpuid is %d",target_cpu_id,mptask_getcpuid(&mptask));
+  
   ret = mpmq_init(&mq, KEY_MQ, mptask_getcpuid(&mptask));
   if (ret < 0)
     {
@@ -271,7 +284,7 @@ int asmp_main(int argc, char *argv[])
 #endif
 {
 #ifdef CONFIG_FS_ROMFS
-  int ret;
+  int ret, numOfWorkers, targetCpuId;
   struct stat buf;
 
   ret = stat(MOUNTPT, &buf);
@@ -298,20 +311,33 @@ int asmp_main(int argc, char *argv[])
     }
 #endif
 
-  if (argc > 1)
+  if (argc == 3)
     {
-      snprintf(fullpath, 128, "%s/%s", MOUNTPT, argv[1]);
+      // snprintf(fullpath, 128, "%s/%s", MOUNTPT, argv[1]);
+      numOfWorkers = atoi(argv[1]);
+      targetCpuId = atoi(argv[2]); 
+      message("Number of workers has been set to %d, cpuId %d\n",numOfWorkers,targetCpuId);
     }
-  else
+  else if (argc == 2)
     {
-#ifdef CONFIG_FS_ROMFS
-      snprintf(fullpath, 128, "%s/%s", MOUNTPT, "hello");
-#else
-      snprintf(fullpath, 128, "%s/%s", MOUNTPT, "HELLO");
-#endif
+      numOfWorkers = atoi(argv[1]);
+      targetCpuId = 1;  
+      message("Number of workers has been set to %d, default cpuId %d\n",numOfWorkers,targetCpuId);
     }
+   else (argc == 1)
+    {
+      numOfWorkers = 2;
+      targetCpuId = 1;    
+      message("Default number of workers is %d, default cpuId 1\n",numOfWorkers,targetCpuId);
+    } 
 
-  (void) run_worker(fullpath);
+#ifdef CONFIG_FS_ROMFS
+  snprintf(fullpath, 128, "%s/%s", MOUNTPT, "hello");
+#else
+  snprintf(fullpath, 128, "%s/%s", MOUNTPT, "HELLO");
+#endif
+
+  (void) run_worker(fullpath, targetCpuId);
 
   return 0;
 }
