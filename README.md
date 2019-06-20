@@ -81,3 +81,27 @@ $ make
 
 A `nuttx.spk` file appears in the `sdk` folder when this step has successfully finished.
 This file is the final result and can be flashed into the your board.
+
+## Connect via serial port
+
+- Install minicom
+- Configure it: Bps/Par/Bits : 115200 8N1, Hardware Flow Control : No, Software Flow Control : No
+- Connect to serial port (usb) to get the NuttX terminal
+
+## Execute the Assymetric Multi-processing example
+
+Install genromfs.
+Set up the compilation configuration to enable ASMP and choose ASMP ELF Loader Example under Examples
+``` bash
+$ tools/config.py -m
+```
+Build the example image:
+``` bash
+$ make buildkernel
+$ make
+```
+
+This example implements a parallel execution of an SVM inference. The main program (asmp) allocates
+the workload and the workers execute the computations. The result is reduced and interprented in
+the main program. The main program is executed using "asmp #numberOfWorkers". If no value for number
+of workers is provided then it defaults to 1.

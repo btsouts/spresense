@@ -53,7 +53,6 @@
 #include <string.h>
 #include <debug.h>
 #include <errno.h>
-#include <math.h>
 
 #include <asmp/asmp.h>
 #include <asmp/mptask.h>
@@ -78,9 +77,11 @@
 #endif
 
 /* MP object keys. Must be synchronized with worker. */
+/*
 #define KEY_SHM   1
 #define KEY_MQ    2
 #define KEY_MUTEX 3
+*/
 
 /* If key is zero then calls to functions fail!!! */
 #define KEY_SHM_BASE   1
@@ -108,10 +109,7 @@
  * Private Data
  ****************************************************************************/
 #define MAX_WORKERS_NUM 5
-#define SHMEM_SIZE 1024
-#define SEPARATOR_INDEX 8
-#define N_sv 1274
-#define D_sv 18
+#define SHMEM_SIZE 128
 
 static char fullpath[128];
 
@@ -125,11 +123,10 @@ static int **shm_buf;
 
 static mptask_t mptask[MAX_WORKERS_NUM];
 static mpmutex_t mutex[MAX_WORKERS_NUM];
-static mpmutex_t shm_mutex;
-static mpshm_t shm;
+static mpshm_t shm[MAX_WORKERS_NUM];
 //static mpshm_t shm;
 static mpmq_t mq[MAX_WORKERS_NUM];
-static float *shm_buf;
+static int *shm_buf[MAX_WORKERS_NUM];
 
 /****************************************************************************
  * Symbols from Auto-Generated Code
@@ -144,16 +141,14 @@ static int worker_init(const char *filename, int workerId, int target_cpu_id)
 {
   int ret, wret;
   mptask_attr_t cpuAffAtr;
-  key_t workerKeyMQ; //workerKeySHM, workerKeyMQ, workerKeyMUTEX;
+  key_t workerKeySHM, workerKeyMQ, workerKeyMUTEX;
 
   CPU_ZERO(&cpuAffAtr.affinity);
   CPU_SET(target_cpu_id,&cpuAffAtr.affinity); 
 
-  workerKeyMQ = KEY_MQ_BASE + workerId;
-  /*
   workerKeySHM = KEY_SHM_BASE + workerId;
+  workerKeyMQ = KEY_MQ_BASE + workerId; 
   workerKeyMUTEX = KEY_MUTEX_BASE + workerId;
-  */
 
   /* Initialize MP task */
   ret = mptask_init(&mptask[workerId], filename);
@@ -177,7 +172,16 @@ static int worker_init(const char *filename, int workerId, int target_cpu_id)
       return ret;
     }
 
-  ret = mptask_bindobj(&mptask[workerId], &shm_mutex);
+  /* Initialize MP mutex and bind it to MP task */
+
+  ret = mpmutex_init(&mutex[workerId], workerKeyMUTEX);
+  if (ret < 0)
+    {
+      err("mpmutex_init() failure. %d\n", ret);
+      return ret;
+    }
+
+  ret = mptask_bindobj(&mptask[workerId], &mutex[workerId]);
   if (ret < 0)
     {
       err("mptask_bindobj(mutex) failure. %d\n", ret);
@@ -201,12 +205,32 @@ static int worker_init(const char *filename, int workerId, int target_cpu_id)
       return ret;
     }
 
-  ret = mptask_bindobj(&mptask[workerId], &shm);
+  /* Initialize MP shared memory and bind it to MP task */
+
+  ret = mpshm_init(&shm[workerId], workerKeySHM, SHMEM_SIZE);
   if (ret < 0)
-  {
-    err("mptask_binobj(shm) failure. %d\n", ret);
-    return ret;
-  }
+    {
+      err("mpshm_init() failure. %d\n", ret);
+      return ret;
+    }
+
+  ret = mptask_bindobj(&mptask[workerId], &shm[workerId]);
+  if (ret < 0)
+    {
+      err("mptask_binobj(shm) failure. %d\n", ret);
+      return ret;
+    }
+
+  /* Map shared memory to virtual space */
+
+  shm_buf[workerId] = (int *) mpshm_attach(&shm[workerId], 0);
+  if (!shm_buf[workerId])
+    {
+      err("mpshm_attach() failure.\n");
+      return ret;
+    }
+  message("attached at %08x\n", (uintptr_t)shm_buf[workerId]);
+  memset(shm_buf[workerId], 0, SHMEM_SIZE);
 
   /* Run worker */
 
@@ -214,6 +238,15 @@ static int worker_init(const char *filename, int workerId, int target_cpu_id)
   if (ret < 0)
     {
       err("mptask_exec() failure. %d\n", ret);
+      return ret;
+    }
+
+  /* Send command to worker */
+
+  ret = mpmq_send(&mq[workerId], MSG_ID_SAYHELLO, 0xdeadbeef);
+  if (ret < 0)
+    {
+      err("mpmq_send() failure. %d\n", ret);
       return ret;
     }
 
@@ -238,6 +271,9 @@ static int worker_destroy(int workerId)
 
   /* Finalize all of MP objects */
 
+  mpshm_detach(&shm[workerId]);
+  mpshm_destroy(&shm[workerId]);
+  mpmutex_destroy(&mutex[workerId]);
   mpmq_destroy(&mq[workerId]);
 
   return 0;
@@ -258,14 +294,10 @@ int asmp_main(int argc, char *argv[])
 #endif
 {
 #ifdef CONFIG_FS_ROMFS
-  int ret, numOfWorkers, targetCpuId, workerId, label;
-  float totalSum=0.0f;
-  float b=2.925321f;
+  int ret, numOfWorkers, targetCpuId, workerId, totalSum=0;
   struct stat buf;
   uint32_t msgdata;
-  int exec_index[MAX_WORKERS_NUM][2];
-  int divided_workload=0, rem_workload=0;
-
+  
   ret = stat(MOUNTPT, &buf);
   if (ret < 0)
     {
@@ -290,7 +322,7 @@ int asmp_main(int argc, char *argv[])
     }
 #endif
 
-  //message("Development effort #19\n");
+  message("Development effort #9\n");
 
   if (argc == 3)
     {
@@ -326,75 +358,10 @@ int asmp_main(int argc, char *argv[])
   snprintf(fullpath, 128, "%s/%s", MOUNTPT, "HELLO");
 #endif
 
-  /* Initialize sh mem mutex */
-
-  ret = mpmutex_init(&shm_mutex, KEY_MUTEX);
-  if (ret < 0)
-  {
-    err("mpmutex_init() failure. %d\n", ret);
-    return ret;
-  }
-
-  /* Initialize MP shared memory */
-
-  ret = mpshm_init(&shm, KEY_SHM, SHMEM_SIZE);
-  if (ret < 0)
-    {
-      err("mpshm_init() failure. %d\n", ret);
-      return ret;
-    }
-
-  /* Map shared memory to virtual space */
-
-  shm_buf = (float *) mpshm_attach(&shm, 0);
-  if (!shm_buf)
-    {
-      err("mpshm_attach() failure.\n");
-      return ret;
-    }
-  message("attached at %08x\n", (uintptr_t)shm_buf);
-  memset(shm_buf, 0, SHMEM_SIZE);
-
-  divided_workload = N_sv / numOfWorkers;
-  rem_workload =  N_sv % numOfWorkers;
-  
-  /*
-  for (i=0; i<numberOfThreads; i++) {
-    thread_data[i][0] = i;
-    thread_data[i][1] = i*divided_workload;
-    thread_data[i][2] = (i+1)*divided_workload;
-  }
-
-  thread_data[numberOfThreads-1][2] += rem_workload;
-  */
-
   for (workerId=0; workerId<numOfWorkers; workerId++) {
     (void) worker_init(fullpath, workerId, workerId+1); //targetCpuId
-
-    exec_index[workerId][0] = workerId*divided_workload;
-    exec_index[workerId][1] = (workerId+1)*divided_workload;
   }
-  exec_index[numOfWorkers-1][1] += rem_workload;
-
-  mpmutex_lock(&shm_mutex);
-  for (workerId=0; workerId<numOfWorkers; workerId++) {
-    message("Worker %d Calculated index_start %d index_fin %d\n", workerId, exec_index[workerId][0], exec_index[workerId][1]);
-    shm_buf[workerId*SEPARATOR_INDEX] = (float) exec_index[workerId][0]; //0.0f;
-    shm_buf[workerId*SEPARATOR_INDEX+1] = (float) exec_index[workerId][1]; //(float) N_sv; //1274.0f; //
-  }
-  mpmutex_unlock(&shm_mutex);
-
-  for (workerId=0; workerId<numOfWorkers; workerId++) {
-    /* Send command to worker */
-
-    ret = mpmq_send(&mq[workerId], MSG_ID_SAYHELLO, 0xdeadbeef);
-    if (ret < 0)
-      {
-        err("mpmq_send() failure. %d\n", ret);
-        return ret;
-      }
-  }
-
+  
   for (workerId=0; workerId<numOfWorkers; workerId++) {
     /* Wait for worker message */
 
@@ -411,35 +378,18 @@ int asmp_main(int argc, char *argv[])
 
     /* Lock mutex for synchronize with worker after it's started */
 
-    mpmutex_lock(&shm_mutex);
+    mpmutex_lock(&mutex[workerId]);
 
-    message("Worker %d calculated: %5.6f\n", workerId, shm_buf[workerId*SEPARATOR_INDEX + 2]);
-    totalSum += shm_buf[workerId*SEPARATOR_INDEX + 2];
-    message("Worker %d Read index_start %5.6f index_fin %5.6f\n", workerId, shm_buf[workerId*SEPARATOR_INDEX + 3], shm_buf[workerId*SEPARATOR_INDEX + 4]);
-    mpmutex_unlock(&shm_mutex);
+    message("Worker %d calculated: %d\n", workerId, shm_buf[workerId][0]);
+    totalSum += shm_buf[workerId][0];
+    mpmutex_unlock(&mutex[workerId]);
   }
 
-  totalSum = totalSum - b;
-
-  if (totalSum<0.0) {
-    label = -1;
-  }
-  else 
-  {
-    label = 1;
-  }  
-
-  message("Total calculated sum is %5.6f and label is %d\n",totalSum,label);
+  message("Total calculated sum is %d\n",totalSum);
 
   for (workerId=0; workerId<numOfWorkers; workerId++) {
     (void) worker_destroy(workerId);  
   }
-
-  message("Workers destroyed smoothly\n");
-
-  mpshm_detach(&shm);
-  mpshm_destroy(&shm);
-  mpmutex_destroy(&shm_mutex);
 
   message("Everything completed smoothly\n");
   return 0;
