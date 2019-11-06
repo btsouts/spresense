@@ -1,0 +1,30 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_SF
+	bool "Sunflower simulator"
+	default n
+	---help---
+		Enable the Sunflower simulator example
+
+if EXAMPLES_SF
+
+config EXAMPLES_SF_PROGNAME
+	string "Program name"
+	default "sf"
+	depends on BUILD_KERNEL
+	---help---
+		This is the name of the program that will be use when the NSH ELF
+		program is installed.
+
+config EXAMPLES_SF_PRIORITY
+	int "sf task priority"
+	default 100
+
+config EXAMPLES_SF_STACKSIZE
+	int "sf stack size"
+	default 2048
+
+endif

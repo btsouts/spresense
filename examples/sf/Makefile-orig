@@ -1,0 +1,88 @@
+############################################################################
+# hello/Makefile
+#
+#   Copyright (C) 2008, 2010-2013 Gregory Nutt. All rights reserved.
+#   Author: Gregory Nutt <gnutt@nuttx.org>
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+# 3. Neither the name NuttX nor the names of its contributors may be
+#    used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+############################################################################
+
+-include $(TOPDIR)/Make.defs
+-include $(SDKDIR)/Make.defs
+
+# Hello, World! built-in application info
+
+CONFIG_EXAMPLES_SF_PRIORITY ?= SCHED_PRIORITY_DEFAULT
+CONFIG_EXAMPLES_SF_STACKSIZE ?= 2048
+
+APPNAME = sf
+PRIORITY = $(CONFIG_EXAMPLES_SF_PRIORITY)
+STACKSIZE = $(CONFIG_EXAMPLES_SF_STACKSIZE)
+
+# Sunflower simulator
+GAWK			= gawk
+GBISON			= bison
+BFLAGS			= -t -v -Wno-other -Wno-conflicts-sr -Wno-conflicts-rr
+
+mspasm.tab.c: mspasm.y lex.c $(HEADERS) Makefile
+	$(GBISON) $(BFLAGS) mspasm.y
+
+mversion.h: 
+	echo 'char const MVERSION[] = "1.1 (build '`date '+%m-%d-%Y-%H:%M:%S'`-`whoami`@`hostname`-`uname`\)\"\; > mversion.h
+
+opstr-hitachi-sh.h: decode-hitachi-sh.h 
+	./mkopstr-hitachi-sh $(GAWK) > opstr-hitachi-sh.h
+
+opstr-ti-msp430.h: decode-ti-msp430.h 
+	./mkopstr-ti-msp430 $(GAWK) > opstr-ti-msp430.h
+
+opstr-riscv.h: decode-riscv.h 
+	./mkopstr-riscv $(GAWK) > opstr-riscv.h
+
+decode-hitachi-sh.h: latencies-hitachi-sh.h 
+	./mkdecode-hitachi-sh $(GAWK) > decode-hitachi-sh.h
+
+decode-riscv.h: latencies-riscv.h 
+	./mkdecode-riscv $(GAWK) > decode-riscv.h
+
+#	Either of the lex-* would suffice for generating the LaTeX / help command array.
+help.h: lex-hitachi-sh.c 
+	./mkhelp $(GAWK) > help.h
+
+commands.tex: lex-hitachi-sh.c 
+	./mkmantex $(GAWK) > commands.tex
+
+ASRCS =
+CSRCS =
+MAINSRC = sf.c
+
+CONFIG_EXAMPLES_SF_PROGNAME ?= sf$(EXEEXT)
+PROGNAME = $(CONFIG_EXAMPLES_SF_PROGNAME)
+
+include $(APPDIR)/Application.mk
