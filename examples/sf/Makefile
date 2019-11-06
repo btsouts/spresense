@@ -126,7 +126,7 @@ endif
 ROOTDEPPATH  = --dep-path .
 
 all: .built
-.PHONY: .built clean depend distclean #clean_dsp
+.PHONY: .built clean depend distclean 
 
 $(AOBJS): %$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
@@ -217,7 +217,7 @@ else
 context:
 endif
 
-.depend:
+.depend: mversion.h opstr-hitachi-sh.h opstr-ti-msp430.h opstr-riscv.h decode-hitachi-sh.h help.h
 	@$(MKDEP) $(ROOTDEPPATH) "$(CC)" -- $(CFLAGS) -- $(SRCS) >Make.dep
 	@touch $@
 
