@@ -44,6 +44,7 @@ ENDIAN			= SF_L_ENDIAN
 PLATFORM_CFLAGS 	= -D$(ENDIAN) -O2
 
 CFLAGS += $(PLATFORM_CFLAGS)
+LDFLAGS += -lm
 
 CONFIG_EXAMPLES_SF_PRIORITY ?= SCHED_PRIORITY_DEFAULT
 CONFIG_EXAMPLES_SF_STACKSIZE ?= 2048
@@ -192,13 +193,13 @@ commands.tex: lex-hitachi-sh.c
 .built: mversion.h opstr-hitachi-sh.h opstr-ti-msp430.h opstr-riscv.h decode-hitachi-sh.h help.h commands.tex $(COBJS) $(MAINOBJ) 
 #	@$(MAKE) -C dsp TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" CROSSDEV=$(CROSSDEV)
 #	@$(MAKE) TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" really_build
-	$(call ARCHIVE, $(BIN), $(OBJS))
 
 ifeq ($(CONFIG_BUILD_KERNEL),y)
 $(BIN_DIR)$(DELIM)$(PROGNAME): $(OBJS) $(MAINOBJ)
 	@echo "LD: $(PROGNAME)"
 	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $(INSTALL_DIR)$(DELIM)$(PROGNAME) $(ARCHCRT0OBJ) $(MAINOBJ) $(LDLIBS)
 	$(Q) $(NM) -u  $(INSTALL_DIR)$(DELIM)$(PROGNAME)
+	$(call ARCHIVE, $(BIN), $(OBJS))
 
 install: $(BIN_DIR)$(DELIM)$(PROGNAME)
 

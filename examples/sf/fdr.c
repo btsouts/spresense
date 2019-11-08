@@ -580,7 +580,9 @@ m_readstabs(Engine *E, State *S, char *filename)
 		/*						*/
 		if ((strlen(line) > 0) && (line[strlen(line)-1] != '\n'))
 		{		
-			fscanf(fp, "%*s\n");
+			//removed for nutxx - FIXME
+			//fscanf(fp, "%*s\n");
+			;
 		}
 
 		sscanf(line, "%d %s %d %d %llx %d%1024[^\n]",	/* 1024 = MAX_STABSTR_LEN */

@@ -96,7 +96,7 @@ m_allocengine(uvlong seed)
 	tmp = (Engine *) calloc(1, sizeof(Engine));
 	if (tmp == nil)
 	{
-		fprintf(stderr, "calloc() failed for Engine *tmp in %s, exiting...", SF_FILE_MACRO);
+		fprintf(stderr, "calloc() failed for Engine *tmp in %s. Requested mem is %ld, exiting...", SF_FILE_MACRO, sizeof(Engine));
 		exit(-1);
 	}
 
@@ -502,15 +502,15 @@ scheduler(Engine *E)
 	/*								*/
 	marchinit();
 
-	if (!(jmpval = setjmp(E->jmpbuf)))
-	{
-		/*	Returning from initial call	*/
-	}
-	else
-	{
-		/*	Returning from longjmp()	*/
-		/*	jmpval == node that barfed.	*/
-	}
+	// if (!(jmpval = setjmp(E->jmpbuf)))
+	// {
+	// 	/*	Returning from initial call	*/
+	// }
+	// else
+	// {
+	// 	/*	Returning from longjmp()	*/
+	// 	/*	jmpval == node that barfed.	*/
+	// }
 
 	while (E->on)
 	{
@@ -850,7 +850,7 @@ sfatal(Engine *E, State *S, char *msg)
 	/*								*/
 	if (do_jmp)
 	{
-		longjmp(E->jmpbuf, S->NODE_ID);
+		//longjmp(E->jmpbuf, S->NODE_ID);
 	}
 }
 

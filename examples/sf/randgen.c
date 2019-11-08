@@ -374,6 +374,12 @@ RandgenPfunfptr SF_PFUN_FPTRS[] =
 	[SF_PFUN_BATHTUB]	m_pfun_bathtub,
 };
 
+static double
+lgammaNuttx (double dummyInp) {
+	return -dummyInp;
+}
+
+
 static tuck double
 e(double x)
 {
@@ -383,7 +389,7 @@ e(double x)
 static tuck double
 factorial(double n)
 {
-	return lgamma(n+1);
+	return lgammaNuttx(n+1);
 }
 
 static tuck double
@@ -395,7 +401,7 @@ binomial(double n, double k)
 static tuck double
 beta(double p, double q)
 {
-	return lgamma(p)*lgamma(q)/lgamma(p+q);
+	return lgammaNuttx(p)*lgammaNuttx(q)/lgammaNuttx(p+q);
 }
 
 static tuck double
@@ -1114,7 +1120,7 @@ m_pr_xi2(Engine *E, double basis_value, double p1, double p2, double p3, double 
 	/*	p1 is used as r						*/
 	/*								*/
 
-	return pow(basis_value, (p1/2.0)-1.0)*e(-basis_value/2.0)/(lgamma(p1/2.0)*exp2(p1/2.0));
+	return pow(basis_value, (p1/2.0)-1.0)*e(-basis_value/2.0)/(lgammaNuttx(p1/2.0)*exp2(p1/2.0));
 }
 double
 m_pfun_xi2(Engine *E, double min, double max, double p1, double p2, double p3, double p4)
@@ -1192,7 +1198,7 @@ m_pr_xi(Engine *E, double basis_value, double p1, double p2, double p3, double p
 	/*	p1 is used as n						*/
 	/*								*/
 
-	return (pow(2, 1-(p1/2))*pow(basis_value, p1-1)*e(-(basis_value*basis_value)/2))/lgamma(p1/2);
+	return (pow(2, 1-(p1/2))*pow(basis_value, p1-1)*e(-(basis_value*basis_value)/2))/lgammaNuttx(p1/2);
 }
 double
 m_pfun_xi(Engine *E, double min, double max, double p1, double p2, double p3, double p4)
@@ -1475,7 +1481,7 @@ m_pr_gamma(Engine *E, double basis_value, double p1, double p2, double p3, doubl
 	/*	p1 and p2 are used as a and t resp.			*/
 	/*								*/
 
-	return pow(basis_value, p1-1)*e(-basis_value/p2)/(lgamma(p1)*pow(p2, p1));
+	return pow(basis_value, p1-1)*e(-basis_value/p2)/(lgammaNuttx(p1)*pow(p2, p1));
 }
 double
 m_pfun_gamma(Engine *E, double min, double max, double p1, double p2, double p3, double p4)
@@ -1761,7 +1767,7 @@ m_pr_pearsontype3(Engine *E, double basis_value, double p1, double p2, double p3
 	/*	p1, p2 and p3 are used as a, b and p			*/
 	/*								*/
 
-	return (1/p2*lgamma(p3))*pow((basis_value-p1)/p2, p3-1)*e(-(basis_value-p1)/p2);
+	return (1/p2*lgammaNuttx(p3))*pow((basis_value-p1)/p2, p3-1)*e(-(basis_value-p1)/p2);
 }
 double
 m_pfun_pearsontype3(Engine *E, double min, double max, double p1, double p2, double p3, double p4)
@@ -1928,7 +1934,7 @@ m_pr_studentsz(Engine *E, double basis_value, double p1, double p2, double p3, d
 	/*	p1 used as n						*/
 	/*								*/
 
-	return lgamma(p1/2)*pow(1+basis_value*basis_value, -p1/2)/(sqrt(M_PI)*lgamma((p1-1)/2));
+	return lgammaNuttx(p1/2)*pow(1+basis_value*basis_value, -p1/2)/(sqrt(M_PI)*lgammaNuttx((p1-1)/2));
 }
 double
 m_pfun_studentsz(Engine *E, double min, double max, double p1, double p2, double p3, double p4)

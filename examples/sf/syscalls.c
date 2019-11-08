@@ -559,14 +559,18 @@ ulong
 sys_chmod(State *S, const char *path, short mode)
 {
 	/*	For now, just pass it on	*/
-	return chmod((char *)&S->MEM[(ulong)path - S->MEMBASE], mode);
+	// Out for nuttx
+	//return chmod((char *)&S->MEM[(ulong)path - S->MEMBASE], mode);
+	return (ulong) 0;
 }
 
 ulong
 sys_chown(State *S, const char *path, short owner, short group)
 {
 	/*	For now, just pass it on	*/
-	return chown((char *)&S->MEM[(ulong)path - S->MEMBASE], owner, group);
+	// Out for nuttx
+	//return chown((char *)&S->MEM[(ulong)path - S->MEMBASE], owner, group);
+	return (ulong) 0;
 }
 
 ulong
@@ -599,6 +603,8 @@ ulong
 sys_utime(State *S, const char *path, const struct utimbuf *times)
 {
 	/*	For now, just pass it on	*/
-	return utime((char *)&S->MEM[(ulong)path - S->MEMBASE],\
-		(const struct utimbuf *)&S->MEM[(ulong)times - S->MEMBASE]);
+	// Out for nuttx
+	//return utime((char *)&S->MEM[(ulong)path - S->MEMBASE],\
+	//	(const struct utimbuf *)&S->MEM[(ulong)times - S->MEMBASE]);
+	return (ulong) 0;
 }

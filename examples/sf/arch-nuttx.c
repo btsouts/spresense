@@ -94,7 +94,9 @@ marchinit(void)
 	
 	sp.sched_priority = sched_get_priority_max(SCHED_RR);
 	sched_setscheduler(getpid(), SCHED_RR, &sp);
-	mlockall(MCL_FUTURE|MCL_CURRENT);
+	/* Out for nuttx
+	 * mlockall(MCL_FUTURE|MCL_CURRENT);
+	*/
 }
 
 char *
@@ -266,9 +268,12 @@ musercputimeusecs(void)
 {
 	struct rusage 	r;
 
+	/* Out for nuttx
 	getrusage(RUSAGE_SELF, &r);
 
 	return (ulong)(r.ru_utime.tv_sec*1E6 + r.ru_utime.tv_usec);
+	*/
+	return (ulong) 0;
 }
 
 ulong
@@ -276,10 +281,13 @@ mcputimeusecs(void)
 {
 	struct rusage 	r;
 
+	/* Out for nuttx
 	getrusage(RUSAGE_SELF, &r);
 
 	return (ulong)(r.ru_utime.tv_sec*1E6 + r.ru_utime.tv_usec +
 		       r.ru_stime.tv_sec*1E6 + r.ru_stime.tv_usec);
+	*/
+	return (ulong) 0;		   
 }
 
 ulong
