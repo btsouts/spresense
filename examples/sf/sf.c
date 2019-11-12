@@ -96,8 +96,10 @@ m_allocengine(uvlong seed)
 	tmp = (Engine *) calloc(1, sizeof(Engine));
 	if (tmp == nil)
 	{
-		fprintf(stderr, "calloc() failed for Engine *tmp in %s. Requested mem is %ld, exiting...", SF_FILE_MACRO, sizeof(Engine));
+		fprintf(stderr, "calloc() failed for Engine *tmp in %s. Requested mem is %ld bytes %ld kB %ld MB, exiting...", SF_FILE_MACRO, sizeof(Engine), sizeof(Engine) / 1024, sizeof(Engine) / (2 << 20));
 		exit(-1);
+	} else {
+		fprintf(stderr, "calloc() for Engine *tmp in %s requested %ld bytes %ld kB %ld MB.\n", SF_FILE_MACRO, sizeof(Engine), sizeof(Engine) / 1024, sizeof(Engine) / (2 << 20));
 	}
 
 	tmp->throttlensec	= 0;
@@ -200,6 +202,7 @@ int sf_main(int nargs, char *args[])
 	E->verbose = 1;
 	marchinit();
 	m_version(E);
+
 	m_newnode(E, "superH", 0, 0, 0, nil, 0, 0.0);	/*	default processor	*/
 //	S = E->sp[0];
 
@@ -228,6 +231,7 @@ int sf_main(int nargs, char *args[])
   		fgets(buf, MAX_BUFLEN, stdin);
 		if (strlen(buf) > 0)
 		{
+			//fprintf(stderr, "R3xD %s",buf);
 			mstatelock();
 			munchinput(E, buf);
 			yyengine = E;
@@ -239,9 +243,10 @@ int sf_main(int nargs, char *args[])
 			{
 				sf_riscv_parse();
 			}
-  			fprintf(stderr, "[ID=%d of %d][PC=0x" UHLONGFMT "][%.1EV, %.1EMHz] ",
+			fprintf(stderr, "[ID=%d of %d][PC=0x" UHLONGFMT "][%.1EV, %.1EMHz] ",
 				E->cp->NODE_ID, E->nnodes, (unsigned long)E->cp->PC,
 				E->cp->VDD, (1/E->cp->CYCLETIME)/1E6);
+
 			mstateunlock();
 
 			buf[0] = '\0';
@@ -1050,6 +1055,7 @@ m_version(Engine *E)
 {
 	mprint(E, NULL, siminfo,
 		"\nSunflower %s\n", MVERSION);
+
 	mprint(E, NULL, siminfo,
 		"Authored, 1999-2018, by Phillip Stanley-Marbell <phillip.stanleymarbell@gmail.com>\n");
 	mprint(E, NULL, siminfo,
@@ -1066,23 +1072,23 @@ void
 m_newnode(Engine *E, char *type, double x, double y, double z, char *trajfilename, int looptrajectory, int trajectoryrate)
 {
 	State	*S = NULL;
-
-
+	
 	if (E->nnodes >= MAX_SIMNODES)
 	{
 		mprint(E, NULL, siminfo, "Node creation limit reached. Sorry.");
 
 		return;
 	}
-
+	
 	/*  newnode xloc yloc zloc orbit velocity  */
 	if ((strlen(type) == 0) || !strncmp(type, "superH", strlen("superH")))
 	{
-		/*		Prime the decode caches		*/		
-		for (int i = 0; i < (1 << 16); i++)
-		{
-			superHdecode(E, (ushort)(i&0xFFFF), &E->superHDC[i].dc_p);
-		}
+		/*		Prime the decode caches		*/
+		/*		Commented out for spresense to avoid seg fault - FIXME	*/		
+		// for (int i = 0; i < (1 << 16); i++)
+		// {
+		// 	superHdecode(E, (ushort)(i&0xFFFF), &E->superHDC[i].dc_p);
+		// }
 
 		S = superHnewstate(E, x, y, z, trajfilename);
 	}
@@ -1095,7 +1101,7 @@ m_newnode(Engine *E, char *type, double x, double y, double z, char *trajfilenam
 		merror(E, "Machine type \"%s\" not supported.", type);
 	}
 
-	if (S == NULL)
+		if (S == NULL)
 	{
 		mprint(E, NULL, siminfo, "Node creation failed...");
 

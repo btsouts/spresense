@@ -104,7 +104,7 @@ enum
 	DEFAULT_MEMWRITE_LATENCY	= 0,
 	DEFAULT_FLASHREAD_LATENCY	= 0,
 	DEFAULT_FLASHWRITE_LATENCY	= 0,
-	DEFLT_MEMSIZE			= 1<<24,
+	DEFLT_MEMSIZE			= 1<<12, /* Default was 24 */
 	DEFLT_FLASHSIZE			= 1<<4,
 };
 
@@ -136,7 +136,7 @@ enum
 	MAX_RUN_ARGS			= 64,
 	MAX_SREC_LINELEN		= 1024,
 	MAX_NAMELEN			= 128,
-	MAX_NUMA_REGIONS		= 8192,
+	MAX_NUMA_REGIONS		= 1, /* Default was 8192 */
 	MAX_REG_TRACERS			= 8192,
 	MAX_CMD_LEN			= 128,
 	MAX_NUMAREGION_NAMELEN		= 64,
@@ -148,8 +148,8 @@ enum
 	MAX_REGTRACER_VALUETRACE	= 1048576,
 	MAX_PCSTACK_HEIGHT		= 8192,
 	MAX_FPSTACK_HEIGHT		= 8192,
-	MAX_RANDTABLEENTRIES		= 8192,
-	MAX_RVARENTRIES			= 128,
+	MAX_RANDTABLEENTRIES		= 1, /* Default was 8192 */
+	MAX_RVARENTRIES			= 1, /* Default was 128 */
 	MAX_NUM_ENGINES			= 4,
 	MAX_BREAKPOINTS			= 32,
 
@@ -785,8 +785,8 @@ struct Engine
 	Labels		labellist;
 
 	/*				Decode caches			*/
-	SuperHDCEntry	superHDC[1<<16];
-	MSP430DCEntry	msp430DC[1<<16];
+	SuperHDCEntry	superHDC[1<<0]; /* Default was 16 */
+	MSP430DCEntry	msp430DC[1<<0]; /* Default was 16 */
 
 
 	/*		Do not spawn new thread on 'ON' command		*/

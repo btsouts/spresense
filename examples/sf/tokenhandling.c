@@ -47,8 +47,8 @@ munchinput(Engine *E, char *buf)
 
 	if (strlen(buf) > 0)
 	{
-              	while (eaten < strlen(buf))
-               	{
+		while (eaten < strlen(buf))
+		{
 			char *tptr;
 			Datum *t1;
 

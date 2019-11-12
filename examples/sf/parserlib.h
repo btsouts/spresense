@@ -50,7 +50,7 @@
 
 enum
 {
-	MAX_BUFLEN = 1024,
+	MAX_BUFLEN = 256, /* Default was 1024 */
 };
 
 typedef struct

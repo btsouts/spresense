@@ -886,43 +886,56 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 	if (S == NULL)
 	{
 		mexit(E, "Failed to allocate memory for State *S.", -1);
-	}
-
+	} else {
+		fprintf(stderr, "Allocated %ld kB for State *S \n", (sizeof(State) >> 10));
+	} 
+		
 	S->superH = (SuperHState *)mcalloc(E, 1, sizeof(SuperHState), "S->superH");
 	if (S->superH == NULL)
 	{
 		mexit(E, "Failed to allocate memory for S->superH.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld kB for S->superH \n", (sizeof(SuperHState) >> 10));
 	}
 
 	S->MEM = (uchar *)mcalloc(E, 1, DEFLT_MEMSIZE, "(uchar *)S->MEM");
 	if (S->MEM == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld kB for S->MEM \n", (DEFLT_MEMSIZE >> 10));
 		mexit(E, "Failed to allocate memory for S->MEM.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld kB for S->MEM \n", (DEFLT_MEMSIZE >> 10));
 	}
 
 	/*
 	*	Initialise array of ShadowMem objects:
 	*/
-
 	S->TAINTMEM = (ShadowMem *)mcalloc(E, 1, S->TAINTMEMSIZE, "(ShadowMem *)S->TAINTMEM"); 
 
 	if (S->TAINTMEM == NULL)
 	{
-		mexit(E, "Failed to allocate memory for S->TAINTMEM.", -1);
+		fprintf(stderr, "Tried to allocate %ld bytes for S->TAINTMEM \n", S->TAINTMEMSIZE);
+		//mexit(E, "Failed to allocate memory for S->TAINTMEM.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld kB for S->TAINTMEM \n", S->TAINTMEMSIZE);
 	}
-
 
 	S->superH->B = (SuperHBuses *)mcalloc(E, 1, sizeof(SuperHBuses), "(SuperHBuses *)S->superH->B");
 	if (S->superH->B == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->superH->B \n", sizeof(SuperHBuses));
 		mexit(E, "Failed to allocate memory for S->superH->B.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->superH->B \n", sizeof(SuperHBuses));
 	}
-
 
 	S->N = (Numa *)mcalloc(E, 1, sizeof(Numa), "(Numa *)S->N");
 	if (S->N == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->N \n", sizeof(Numa));
 		mexit(E, "Failed to allocate memory for S->N.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->N \n", sizeof(Numa));
 	}
 	S->N->count = 0;
 
@@ -931,14 +944,19 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 		sizeof(Numaregion*), "(Numaregion **)S->N->regions");
 	if (S->N->regions == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->N->regions \n", MAX_NUMA_REGIONS *sizeof(Numaregion*));
 		mexit(E, "Failed to allocate memory for S->N->regions.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->N->regions \n", MAX_NUMA_REGIONS *sizeof(Numaregion*));
 	}
-
 
 	S->Nstack = (Numa *)mcalloc(E, 1, sizeof(Numa), "(Numa *)S->Nstack");
 	if (S->Nstack == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->Nstack \n", sizeof(Numa));
 		mexit(E, "Failed to allocate memory for S->Nstack.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->Nstack \n", sizeof(Numa));
 	}
 	S->Nstack->count = 0;
 
@@ -947,14 +965,19 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 		sizeof(Numaregion*), "(Numaregion **)S->Nstack->regions");
 	if (S->Nstack->regions == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->Nstack->regions \n", MAX_NUMA_REGIONS*sizeof(Numaregion*));	
 		mexit(E, "Failed to allocate memory for S->Nstack->regions.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->Nstack->regions \n", MAX_NUMA_REGIONS*sizeof(Numaregion*));	
 	}
-
 
 	S->RT = (Regtraces *)mcalloc(E, 1, sizeof(Regtraces), "(Regtraces *)S->RT");
 	if (S->RT == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->Nstack \n", sizeof(Regtraces));	
 		mexit(E, "Failed to allocate memory for S->RT.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->Nstack \n", sizeof(Regtraces));	
 	}
 	S->RT->count = 0;
 
@@ -963,7 +986,10 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 		sizeof(Regvt*), "(Regvt **)S->RT->regvts");
 	if (S->RT->regvts == NULL)
 	{
+		fprintf(stderr, "Tried to allocate %ld bytes for S->RT->regvts \n", MAX_REG_TRACERS*sizeof(Regvt*));	
 		mexit(E, "Failed to allocate memory for S->RT->regvts.", -1);
+	} else {
+		fprintf(stderr, "Allocated %ld bytes for S->RT->regvts \n", MAX_REG_TRACERS*sizeof(Regvt*));	
 	}
 
 
@@ -973,8 +999,8 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 			"logfilename in machine-hitachi-sh.c"); 
 		if (logfilename == NULL)
 		{
-                	mexit(E, "Failed to allocate memory for logfilename.", -1);
-        	}
+			mexit(E, "Failed to allocate memory for logfilename.", -1);
+		}
 
 		msnprint(logfilename, MAX_NAMELEN, "simlog.node%d", E->nnodes);
 
@@ -986,7 +1012,6 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 			mexit(E, "Could not open logfile for writing.", -1);
 		}
 	}
-
 	E->cp = S;
 	E->sp[E->nnodes] = S;
 	mprint(E, NULL, siminfo, "New node created with node ID %d\n", E->nnodes);
@@ -1088,7 +1113,6 @@ superHnewstate(Engine *E, double xloc, double yloc, double zloc, char *trajfilen
 	{
 		mexit(E, "Failed to allocate memory for S->superH->excpQ->hd | S->superH->excpQ->tl.", -1);
 	}
-
 
 	return S;
 }
